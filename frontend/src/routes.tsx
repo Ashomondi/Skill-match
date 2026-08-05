@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { ResumePage } from './pages/Resume';
 import { useAuth } from './hooks/useAuth';
 
 const RouteLoading = () => <div className="flex min-h-screen items-center justify-center bg-[#F6F0E6] text-sm text-[#8A7B6B]">Loading...</div>;
@@ -13,6 +14,7 @@ export const AppRoutes: React.FC = () => <Routes>
   <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
   <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
   <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+  <Route path="/resume" element={<ProtectedRoute><ResumePage /></ProtectedRoute>} />
   <Route path="/" element={<Navigate to="/dashboard" replace />} />
   <Route path="*" element={<Navigate to="/dashboard" replace />} />
 </Routes>;
