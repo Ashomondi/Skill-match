@@ -37,13 +37,13 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-lg font-bold mb-4 border-b border-[#C2BBB0] pb-2">Quick Actions</h2>
           <div className="flex flex-wrap gap-4">
             <a
-              href="/resume"
+              href="/cv-tailor"
               className="bg-[#E3DCD1] border border-[#8C8275] px-4 py-2 rounded text-sm hover:bg-[#D8D0C3]"
             >
               Upload & Tailor New CV
             </a>
             <a
-              href="/jobs"
+              href="/discover"
               className="bg-[#E3DCD1] border border-[#8C8275] px-4 py-2 rounded text-sm hover:bg-[#D8D0C3]"
             >
               Discover Matching Roles
