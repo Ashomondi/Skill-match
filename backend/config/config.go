@@ -5,6 +5,9 @@ type Config struct {
 
 	DatabaseURL string
 	JWTSecret   string
+
+	AWSRegion string
+	S3Bucket  string
 }
 
 func Load() *Config {
@@ -15,5 +18,8 @@ func Load() *Config {
 
 		DatabaseURL: getEnv("DATABASE_URL", ""),
 		JWTSecret:   getEnv("JWT_SECRET", ""),
+
+		AWSRegion: awsRegion(),
+		S3Bucket:  s3Bucket(),
 	}
 }
