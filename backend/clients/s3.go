@@ -36,7 +36,7 @@ func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) 
 	}, nil
 }
 
-/
+
 func (c *S3Client) Key(userID, fileID string) string {
 	return fmt.Sprintf("resumes/%s/%s", userID, fileID)
 }
