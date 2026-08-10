@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"context"
 )
 
 const MaxResumeFileSize = 5 * 1024 * 1024
@@ -84,4 +85,26 @@ func GenerateFileID(originalFilename string) (string, error) {
 	}
 	ext := strings.ToLower(filepath.Ext(originalFilename))
 	return hex.EncodeToString(buf) + ext, nil
+}
+
+type PostUploadValidator interface {
+	Download(ctx context.Context, key string) ([]byte, error)
+	Delete(ctx context.Context, key string) error
+}
+
+func ValidateUploadedFile(ctx context.Context, storage PostUploadValidator, key, filename string) error {
+	content, err := storage.Download(ctx, key)
+	if err != nil {
+		return fmt.Errorf("fetching uploaded file for validation: %w", err)
+	}
+
+	if err := ValidateFileContent(filename, content); err != nil {
+		// Invalid content — clean up storage so no bad file lingers.
+		if delErr := storage.Delete(ctx, key); delErr != nil {
+			return fmt.Errorf("file failed validation (%w) and cleanup also failed: %v", err, delErr)
+		}
+		return fmt.Errorf("uploaded file failed validation and was removed: %w", err)
+	}
+
+	return nil
 }
