@@ -1,224 +1,133 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, Loader as Loader2, CircleAlert as AlertCircle } from 'lucide-react';
+import { AlertCircle, Check, Eye, EyeOff, Loader2, ShieldCheck, Settings, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
-interface FormErrors {
-  email?: string;
-  password?: string;
-}
+type AuthLayoutProps = {
+  children: React.ReactNode;
+  register?: boolean;
+};
+
+const GoogleMark = () => (
+  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true">
+    <path fill="#4285F4" d="M21.35 12.22c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.52h3.14c1.84-1.69 2.91-4.19 2.91-7.29Z" />
+    <path fill="#34A853" d="M12 21.72c2.62 0 4.82-.87 6.43-2.35l-3.14-2.52c-.87.58-1.99.92-3.29.92-2.53 0-4.67-1.71-5.44-4v2.6H3.32a9.72 9.72 0 0 0 8.68 5.35Z" />
+    <path fill="#FBBC05" d="M6.56 13.77a5.84 5.84 0 0 1 0-3.54v-2.6H3.32a9.72 9.72 0 0 0 0 8.74l3.24-2.6Z" />
+    <path fill="#EA4335" d="M12 6.23c1.43 0 2.71.49 3.72 1.44l2.79-2.79C16.82 3.3 14.62 2.28 12 2.28a9.72 9.72 0 0 0-8.68 5.35l3.24 2.6c.77-2.29 2.91-4 5.44-4Z" />
+  </svg>
+);
+
+const Brand = ({ mobile = false }: { mobile?: boolean }) => (
+  <Link to="/" className={mobile ? 'inline-block text-center' : 'inline-block'}>
+    <span className="font-serif text-[24px] tracking-[-0.03em] text-[#3A2A1C]">Skill-match</span>
+    <span className="mt-1 block border-b-2 border-[#B08D57]" />
+  </Link>
+);
+
+const ArcDecoration = () => (
+  <svg className="pointer-events-none absolute -bottom-28 -left-28 h-72 w-72 text-[#B08D57] opacity-20" viewBox="0 0 300 300" fill="none" aria-hidden="true">
+    <circle cx="150" cy="150" r="72" stroke="currentColor" />
+    <circle cx="150" cy="150" r="105" stroke="currentColor" />
+    <circle cx="150" cy="150" r="138" stroke="currentColor" />
+  </svg>
+);
+
+export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, register = false }) => {
+  const rows = register
+    ? [
+        ['Your data stays private', 'Enterprise-grade encryption keeps your history yours alone.', ShieldCheck],
+        ['Gets smarter with every application', 'Our engine adapts to industry trends as you apply.', Settings],
+        ['Tailored in seconds, not hours.', 'Generate precise, targeted resumes without the manual rework.', Zap],
+      ]
+    : [
+        ['Your data stays private', '', ShieldCheck],
+        ['Gets smarter with every application', '', Settings],
+        ['Tailored in seconds, not hours', '', Zap],
+      ];
+
+  return (
+    <div className="flex min-h-screen bg-[#F6F0E6]">
+      <aside className="relative hidden min-h-screen w-[45%] flex-col overflow-hidden bg-[#E3D7C4] p-12 lg:flex xl:p-16">
+        <Brand />
+        <div className="mt-auto mb-[12%] max-w-[380px]">
+          <h2 className="font-serif text-[34px] font-semibold leading-[1.16] tracking-[-0.03em] text-[#3A2A1C]">Your career, with a memory that never forgets what worked.</h2>
+          <p className="mt-4 text-[15px] text-[#8A7B6B]">Every application teaches your CV something new.</p>
+          <div className="mt-9 space-y-5">
+            {rows.map(([title, description, Icon]) => {
+              const FeatureIcon = Icon as typeof ShieldCheck;
+              return (
+                <div className="flex gap-3" key={title as string}>
+                  <FeatureIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#B08D57]" strokeWidth={1.7} />
+                  <div className="text-[14px] leading-5 text-[#3A2A1C]">
+                    <p className={register ? 'font-semibold' : ''}>{title as string}</p>
+                    {description ? <p className="mt-0.5 text-[13px] leading-[1.45] text-[#8A7B6B]">{description as string}</p> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <ArcDecoration />
+      </aside>
+      <main className="flex min-h-screen w-full items-center justify-center px-6 py-8 lg:w-[55%] lg:px-12">
+        <div className="w-full max-w-[400px]">
+          <div className="pb-8 text-center lg:hidden"><Brand mobile /></div>
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
-
+  const { login, error, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [touched, setTouched] = useState({ email: false, password: false });
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  const validate = (): FormErrors => {
-    const newErrors: FormErrors = {};
+  const emailError = touched.email && !isEmail(email) ? 'Enter a valid email address.' : '';
+  const passwordError = touched.password && !password ? 'Enter your password.' : '';
+  const isSubmitting = loading && submitAttempted;
 
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = 'Enter a valid email address';
-    }
-
-    if (!password) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    return newErrors;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError(null);
-
-    const validationErrors = validate();
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length > 0) return;
-
-    setIsSubmitting(true);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setTouched({ email: true, password: true });
+    if (!isEmail(email) || !password) return;
+    setSubmitAttempted(true);
     try {
       await login({ email, password });
       navigate('/dashboard');
-    } catch (err: any) {
-      setSubmitError(err.message || 'Unable to sign in. Please check your credentials.');
-    } finally {
-      setIsSubmitting(false);
+    } catch {
+      // The hook exposes the backend error for the inline banner.
     }
   };
 
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value);
-    if (errors.email) setErrors({ ...errors, email: undefined });
-  };
-
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPassword(e.target.value);
-    if (errors.password) setErrors({ ...errors, password: undefined });
-  };
-
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel — brand / image */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-[#2C2A29] to-[#3D3733]">
-        <div className="absolute inset-0 flex flex-col justify-between p-12 text-[#EAE5DC]">
-          <Link to="/" className="text-2xl font-bold tracking-tight">
-            SkillMatch
-          </Link>
-
-          <div className="space-y-6 max-w-md">
-            <h1 className="text-4xl font-bold leading-tight">
-              Your career, with a memory that never forgets what worked.
-            </h1>
-            <p className="text-base text-[#C2BBB0] leading-relaxed">
-              Sign in to access your tailored CVs, AI-powered job matches, and an application
-              tracker that learns from every step you take.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-[#8C8275]">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            Memory layer healthy
-          </div>
+    <AuthLayout>
+      <header><h1 className="font-serif text-[32px] font-semibold tracking-[-0.03em] text-[#3A2A1C]">Welcome back.</h1><p className="mt-2 text-[15px] text-[#8A7B6B]">Log in to keep building your tailored applications.</p></header>
+      <form className="mt-6 space-y-6" onSubmit={submit} noValidate>
+        <div>
+          <label htmlFor="email" className="mb-2 block text-sm font-medium text-[#3A2A1C]">Email</label>
+          <div className="relative"><input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={() => setTouched((value) => ({ ...value, email: true }))} placeholder="you@example.com" className={`h-11 w-full rounded border bg-[#EFE6D6] px-3 pr-10 text-[15px] text-[#3A2A1C] outline-none transition focus:ring-2 focus:ring-[#B08D57]/40 ${emailError ? 'border-[#B5573C]' : touched.email && isEmail(email) ? 'border-[#7A8B6F]' : 'border-[#D8C9B2]'}`} />{touched.email && isEmail(email) ? <Check className="absolute right-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[#7A8B6F]" /> : null}</div>
+          {emailError ? <p className="mt-1 text-xs text-[#B5573C]">{emailError}</p> : null}
         </div>
-      </div>
-
-      {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center bg-[#EAE5DC] px-6 py-12 sm:px-12">
-        <div className="w-full max-w-md">
-          {/* Mobile brand */}
-          <Link to="/" className="lg:hidden block text-2xl font-bold text-[#2C2A29] mb-8">
-            SkillMatch
-          </Link>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-[#2C2A29]">Welcome back</h2>
-            <p className="mt-2 text-sm text-[#6B655D]">
-              Sign in to continue to your dashboard.
-            </p>
-          </div>
-
-          {submitError && (
-            <div
-              role="alert"
-              className="mb-6 flex items-start gap-2 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"
-            >
-              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>{submitError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#2C2A29] mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8C8275]" />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={handleEmailChange}
-                  placeholder="you@example.com"
-                  aria-invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'email-error' : undefined}
-                  className={`w-full rounded border bg-[#F5F1E9] py-2.5 pl-10 pr-3 text-sm text-[#2C2A29] placeholder:text-[#8C8275] focus:outline-none focus:ring-2 focus:ring-[#594433] focus:border-transparent transition ${
-                    errors.email ? 'border-red-400' : 'border-[#C2BBB0]'
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <p id="email-error" className="mt-1.5 text-xs text-red-600">
-                  {errors.email}
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#2C2A29] mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8C8275]" />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  placeholder="Enter your password"
-                  aria-invalid={!!errors.password}
-                  aria-describedby={errors.password ? 'password-error' : undefined}
-                  className={`w-full rounded border bg-[#F5F1E9] py-2.5 pl-10 pr-10 text-sm text-[#2C2A29] placeholder:text-[#8C8275] focus:outline-none focus:ring-2 focus:ring-[#594433] focus:border-transparent transition ${
-                    errors.password ? 'border-red-400' : 'border-[#C2BBB0]'
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C8275] hover:text-[#2C2A29] transition"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  tabIndex={0}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              {errors.password && (
-                <p id="password-error" className="mt-1.5 text-xs text-red-600">
-                  {errors.password}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm text-[#6B655D] cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-[#C2BBB0] text-[#594433] focus:ring-[#594433]"
-                />
-                Remember me
-              </label>
-              <a href="#" className="text-sm text-[#594433] hover:underline">
-                Forgot password?
-              </a>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 rounded bg-[#594433] py-2.5 text-sm font-medium text-white hover:bg-[#3D3733] focus:outline-none focus:ring-2 focus:ring-[#594433] focus:ring-offset-2 focus:ring-offset-[#EAE5DC] disabled:opacity-60 disabled:cursor-not-allowed transition"
-            >
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          <p className="mt-8 text-center text-sm text-[#6B655D]">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="font-medium text-[#594433] hover:underline">
-              Create one
-            </Link>
-          </p>
+        <div>
+          <div className="mb-2 flex justify-between"><label htmlFor="password" className="text-sm font-medium text-[#3A2A1C]">Password</label><a href="#" className="text-sm font-medium text-[#5C3A21] hover:underline">Forgot password?</a></div>
+          <div className="relative"><input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} onBlur={() => setTouched((value) => ({ ...value, password: true }))} placeholder="••••••••" className={`h-11 w-full rounded border bg-[#EFE6D6] px-3 pr-10 text-[15px] text-[#3A2A1C] outline-none transition focus:ring-2 focus:ring-[#B08D57]/40 ${passwordError ? 'border-[#B5573C]' : 'border-[#D8C9B2]'}`} /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A7B6B]" aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff className="h-[18px] w-[18px]" /> : <Eye className="h-[18px] w-[18px]" />}</button></div>
+          {passwordError ? <p className="mt-1 text-xs text-[#B5573C]">{passwordError}</p> : null}
         </div>
-      </div>
-    </div>
+        {error ? <div role="alert" className="flex gap-2 rounded border border-[#B5573C] bg-[#B5573C]/10 p-3 text-sm text-[#3A2A1C]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B5573C]" />{error || "That email and password don't match."}</div> : null}
+        <button type="submit" disabled={isSubmitting} className="flex h-11 w-full items-center justify-center rounded bg-[#5C3A21] text-[15px] font-semibold text-[#F6F0E6] transition hover:bg-[#4A2F1A] hover:shadow-[0px_4px_16px_rgba(92,58,33,0.14)] disabled:pointer-events-none disabled:opacity-70">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log in'}</button>
+      </form>
+      <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#D8C9B2]" /><span className="bg-[#F6F0E6] px-2 text-xs text-[#8A7B6B]">or</span><span className="h-px flex-1 bg-[#D8C9B2]" /></div>
+      <button type="button" className="flex h-11 w-full items-center justify-center gap-3 rounded border border-[#3A2A1C]/40 text-[15px] font-medium text-[#3A2A1C]"><GoogleMark />Continue with Google</button>
+      <p className="mt-7 text-center text-sm text-[#8A7B6B]">Don&apos;t have an account? <Link to="/register" className="font-semibold text-[#3A2A1C] hover:underline">Sign up</Link></p>
+    </AuthLayout>
   );
 };
 

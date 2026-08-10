@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export const Navbar: React.FC = () => {
@@ -12,29 +12,25 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="border-b border-[#C2BBB0] bg-[#EAE5DC] px-6 py-4 flex justify-between items-center font-mono">
-      <div className="flex items-center gap-8">
-        <Link to="/" className="font-bold text-lg text-[#2C2A29]">
+    <header className="flex items-center justify-between border-b border-[var(--border-hairline)] bg-[var(--bg-nav)] px-5 py-4 sm:px-8">
+      <div className="flex items-center gap-6">
+        <Link to="/dashboard" className="font-serif text-xl font-bold text-[var(--text-heading)]">
           Skill-match
         </Link>
         {isAuthenticated && (
-          <nav className="flex gap-6 text-sm">
-            <Link to="/dashboard" className="text-[#2C2A29] hover:underline">Dashboard</Link>
-            <Link to="/resume" className="text-[#2C2A29] hover:underline">CV Tailor</Link>
-            <Link to="/jobs" className="text-[#2C2A29] hover:underline">Discover</Link>
-            <Link to="/applications" className="text-[#2C2A29] hover:underline">Applications</Link>
-            <Link to="/history" className="text-[#2C2A29] hover:underline">History</Link>
+          <nav className="hidden gap-5 text-sm md:flex">
+            {[['/dashboard','Dashboard'],['/cv-tailor','CV Tailor'],['/discover','Discover'],['/applications','Applications'],['/history','History']].map(([to,label]) => <NavLink key={to} to={to} className={({isActive}) => `border-b-2 pb-1 ${isActive ? 'border-[var(--accent-gold)] text-[var(--text-heading)]' : 'border-transparent text-[var(--text-body)] hover:text-[var(--text-heading)]'}`}>{label}</NavLink>)}
           </nav>
         )}
       </div>
 
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-3 text-sm">
         {isAuthenticated ? (
           <>
-            <span className="text-[#6B655D]">Hi, {user?.fullName || 'User'}</span>
+            <span className="hidden text-[var(--text-muted)] sm:block">Hi, {user?.fullName || 'User'}</span>
             <button
               onClick={handleLogout}
-              className="bg-[#E3DCD1] border border-[#8C8275] px-3 py-1.5 rounded cursor-pointer hover:bg-[#D8D0C3]"
+              className="rounded border border-[var(--text-button-fill)] px-3 py-1.5 text-[var(--text-button-fill)]"
             >
               Log out
             </button>
