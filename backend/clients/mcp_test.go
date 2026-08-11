@@ -18,7 +18,7 @@ func TestMCPClient_Call(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client, err := NewMCPClient(server.URL, "test-key")
+	client, err := NewMCPClient(server.URL, "test-key", "test-cluster")
 	if err != nil {
 		t.Fatalf("unexpected error creating client: %v", err)
 	}
