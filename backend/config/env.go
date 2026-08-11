@@ -44,3 +44,11 @@ func bedrockRegion() string {
 func bedrockModelID() string {
 	return getEnv("BEDROCK_MODEL_ID", "")
 }
+
+func mcpEndpoint() string {
+	return getEnv("MCP_ENDPOINT", "https://cockroachlabs.cloud/mcp")
+}
+
+func mcpAPIKey() string {
+	return getEnv("MCP_API_KEY", "")
+}

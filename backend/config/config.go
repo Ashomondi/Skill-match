@@ -11,6 +11,9 @@ type Config struct {
 
 	BedrockRegion  string
 	BedrockModelID string
+
+	MCPEndpoint string
+	MCPAPIKey   string
 }
 
 func Load() *Config {
