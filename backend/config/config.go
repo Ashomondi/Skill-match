@@ -14,6 +14,8 @@ type Config struct {
 
 	MCPEndpoint string
 	MCPAPIKey   string
+	MCPClusterID string
+
 }
 
 func Load() *Config {
@@ -30,5 +32,6 @@ func Load() *Config {
 
 		BedrockRegion:  bedrockRegion(),
 		BedrockModelID: bedrockModelID(),
+		MCPClusterID: mcpClusterID(),
 	}
 }

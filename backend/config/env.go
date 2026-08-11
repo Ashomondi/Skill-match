@@ -52,3 +52,7 @@ func mcpEndpoint() string {
 func mcpAPIKey() string {
 	return getEnv("MCP_API_KEY", "")
 }
+
+func mcpClusterID() string {
+	return getEnv("MCP_CLUSTER_ID", "")
+}
