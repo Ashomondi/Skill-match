@@ -3,13 +3,14 @@ package clients
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/aws/smithy-go"
 )
-
 
 type BedrockClient struct {
 	client  *bedrockruntime.Client
@@ -49,7 +50,6 @@ type modelResponse struct {
 	} `json:"content"`
 }
 
-
 func (c *BedrockClient) GenerateResponse(ctx context.Context, prompt string) (string, error) {
 	body := modelRequest{
 		AnthropicVersion: "bedrock-2023-05-31",
@@ -83,4 +83,27 @@ func (c *BedrockClient) GenerateResponse(ctx context.Context, prompt string) (st
 	}
 
 	return response.Content[0].Text, nil
+}
+
+type BedrockGenerator interface {
+	GenerateResponse(ctx context.Context, prompt string) (string, error)
+}
+
+func ClassifyBedrockError(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.ErrorCode() {
+		case "ThrottlingException":
+			return "The AI service is busy right now. Please try again in a moment."
+		case "ModelTimeoutException":
+			return "The AI took too long to respond. Please try again."
+		case "ValidationException":
+			return "There was a problem with the request format."
+		case "AccessDeniedException":
+			return "AI service access is not configured correctly."
+		default:
+			return "The AI service encountered an error. Please try again."
+		}
+	}
+	return "Something went wrong. Please try again."
 }
