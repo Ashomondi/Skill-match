@@ -169,10 +169,8 @@ func (h *ResumeHandler) Update(
 		utils.MaxResumeSize+1024,
 	)
 
-	userIDValue := r.Context().Value("user_id")
-
-	userID, ok := userIDValue.(string)
-	if !ok || strings.TrimSpace(userID) == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeResumeJSON(
 			w,
 			http.StatusUnauthorized,
