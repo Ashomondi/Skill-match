@@ -75,7 +75,6 @@ func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			Size:     header.Size,
 		},
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidFileType):
@@ -228,7 +227,7 @@ func writeResumeJSON(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	// Encode directly here instead of calling another undefined
-	// writeJSON function.
-	_ = json.NewEncoder(w).Encode(data)
+	// We intentionally ignore encoding errors here because the
+	// response headers have already been written.
+	writeJSON(w, status, data)
 }

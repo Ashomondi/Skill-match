@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -55,9 +54,7 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 
 			claims, err := jwtManager.ValidateToken(token)
 			if err != nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{
-					"error": "invalid or expired token",
-				})
+				utils.WriteError(w, utils.NewValidationError("Invalid or expired token.", nil))
 				return
 			}
 
@@ -128,4 +125,12 @@ func writeJSON(
 	w.WriteHeader(status)
 
 	_ = json.NewEncoder(w).Encode(data)
+// GetUserID is a convenience wrapper for the common case of just needing
+// the authenticated user's ID.
+func GetUserID(ctx context.Context) (string, bool) {
+	claims := ClaimsFromContext(ctx)
+	if claims == nil || strings.TrimSpace(claims.UserID) == "" {
+		return "", false
+	}
+	return claims.UserID, true
 }
