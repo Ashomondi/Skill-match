@@ -17,11 +17,10 @@ import (
 )
 
 var (
-	ErrResumeUploadFailed = errors.New("resume upload failed")
-	ErrResumeUpdateFailed = errors.New("resume update failed")
-	ErrResumeDeleteFailed = errors.New("resume delete failed")
-	ErrResumeNotFound     = errors.New("resume not found")
-	ErrResumeUnauthorized = errors.New("resume does not belong to user")
+    ErrResumeUploadFailed = errors.New("resume upload failed")
+    ErrResumeUpdateFailed = errors.New("resume update failed")
+    ErrResumeDeleteFailed = errors.New("resume delete failed")
+    ErrResumeNotFound     = errors.New("resume not found")
 )
 
 // ResumeRepository defines the database operations required
