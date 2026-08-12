@@ -7,7 +7,6 @@ import (
 
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
-	"skill-match/backend/middleware"
 )
 
 type ResumeHandler struct {
@@ -76,7 +75,6 @@ func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			Size:     header.Size,
 		},
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrInvalidFileType):
@@ -121,5 +119,5 @@ func writeResumeJSON(
 
 	// We intentionally ignore encoding errors here because the
 	// response headers have already been written.
-	_ = writeJSON(w, data)
+	writeJSON(w, status, data)
 }

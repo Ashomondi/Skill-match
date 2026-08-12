@@ -10,6 +10,8 @@ import (
 
 	"skill-match/backend/repositories"
 	"skill-match/backend/utils"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -27,7 +29,7 @@ type UserRepository interface {
 
 // AuthService handles authentication business logic.
 type AuthService struct {
-	userRepo  UserRepository
+	userRepo   UserRepository
 	jwtManager *utils.JWTManager
 }
 
@@ -50,7 +52,6 @@ func (s *AuthService) Register(
 	password string,
 	fullName string,
 ) (*repositories.User, string, error) {
-
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	if !strings.Contains(email, "@") {
@@ -106,7 +107,6 @@ func (s *AuthService) Login(
 	email string,
 	password string,
 ) (*repositories.User, string, error) {
-
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
@@ -127,7 +127,6 @@ func (s *AuthService) Login(
 		user.ID,
 		user.Email,
 	)
-
 	if err != nil {
 		return nil, "", err
 	}
