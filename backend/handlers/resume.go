@@ -1,13 +1,13 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
-	"skill-match/backend/middleware"
 )
 
 type ResumeHandler struct {
@@ -22,6 +22,7 @@ func NewResumeHandler(
 	}
 }
 
+// Upload handles POST /api/resumes.
 func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeResumeJSON(w, http.StatusMethodNotAllowed, map[string]string{
@@ -30,16 +31,14 @@ func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent unnecessarily large requests from reaching the
-	// application.
+	// Prevent unnecessarily large requests from reaching the application.
 	r.Body = http.MaxBytesReader(
 		w,
 		r.Body,
 		utils.MaxResumeSize+1024,
 	)
 
-	err := r.ParseMultipartForm(utils.MaxResumeSize)
-	if err != nil {
+	if err := r.ParseMultipartForm(utils.MaxResumeSize); err != nil {
 		writeResumeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": "invalid multipart form",
 		})
@@ -55,8 +54,8 @@ func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// We expect the authenticated user ID to be placed into
-	// the request context by middleware.
+	// The authentication middleware places the user ID
+	// into the request context.
 	userIDValue := r.Context().Value("user_id")
 
 	userID, ok := userIDValue.(string)
@@ -111,6 +110,116 @@ func (h *ResumeHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Update handles PUT /api/resumes/{id}.
+func (h *ResumeHandler) Update(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		writeResumeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "method not allowed",
+		})
+		return
+	}
+
+	// Prevent unnecessarily large requests from reaching the application.
+	r.Body = http.MaxBytesReader(
+		w,
+		r.Body,
+		utils.MaxResumeSize+1024,
+	)
+
+	// Get the authenticated user ID from the request context.
+	userIDValue := r.Context().Value("user_id")
+
+	userID, ok := userIDValue.(string)
+	if !ok || strings.TrimSpace(userID) == "" {
+		writeResumeJSON(w, http.StatusUnauthorized, map[string]string{
+			"error": "authentication required",
+		})
+		return
+	}
+
+	// Go's net/http ServeMux supports path parameters.
+	resumeID := r.PathValue("id")
+
+	if strings.TrimSpace(resumeID) == "" {
+		writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "resume ID is required",
+		})
+		return
+	}
+
+	if err := r.ParseMultipartForm(utils.MaxResumeSize); err != nil {
+		writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid multipart form",
+		})
+		return
+	}
+
+	file, header, err := r.FormFile("resume")
+	if err != nil {
+		writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "resume file is required",
+		})
+		return
+	}
+	defer file.Close()
+
+	updatedResume, err := h.resumeService.Update(
+		r.Context(),
+		services.UpdateResumeInput{
+			UserID:   userID,
+			ResumeID: resumeID,
+			Filename: header.Filename,
+			File:     file,
+			Size:     header.Size,
+		},
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrResumeNotFound):
+			writeResumeJSON(w, http.StatusNotFound, map[string]string{
+				"error": "resume not found",
+			})
+
+		case errors.Is(err, services.ErrResumeUnauthorized):
+			writeResumeJSON(w, http.StatusForbidden, map[string]string{
+				"error": "you do not have permission to update this resume",
+			})
+
+		case errors.Is(err, utils.ErrInvalidFileType):
+			writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "only PDF and DOCX resumes are allowed",
+			})
+
+		case errors.Is(err, utils.ErrFileTooLarge):
+			writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "resume must not exceed 5 MB",
+			})
+
+		case errors.Is(err, utils.ErrEmptyFile):
+			writeResumeJSON(w, http.StatusBadRequest, map[string]string{
+				"error": "resume file cannot be empty",
+			})
+
+		default:
+			writeResumeJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": "failed to update resume",
+			})
+		}
+
+		return
+	}
+
+	writeResumeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":   "resume updated successfully",
+		"resume_id": updatedResume.ID,
+		"version":   updatedResume.Version,
+		"status":    updatedResume.Status,
+		"resume":    updatedResume,
+	})
+}
+
+// writeResumeJSON writes a JSON response.
 func writeResumeJSON(
 	w http.ResponseWriter,
 	status int,
@@ -119,7 +228,7 @@ func writeResumeJSON(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	// We intentionally ignore encoding errors here because the
-	// response headers have already been written.
-	_ = writeJSON(w, data)
+	// Encode directly here instead of calling another undefined
+	// writeJSON function.
+	_ = json.NewEncoder(w).Encode(data)
 }
