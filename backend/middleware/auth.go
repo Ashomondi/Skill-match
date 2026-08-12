@@ -82,7 +82,8 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 
 // GetUserID retrieves the authenticated user's ID from the request context.
 func GetUserID(r *http.Request) (string, bool) {
-	userID, ok := r.Context().Value(userIDKey).(string)
+	userID, ok := r.Context().
+		Value(userIDKey).(string)
 
 	if !ok || strings.TrimSpace(userID) == "" {
 		return "", false
