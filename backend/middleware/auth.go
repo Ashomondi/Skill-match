@@ -10,23 +10,45 @@ import (
 
 type contextKey string
 
-const claimsKey contextKey = "claims"
+const (
+	userIDKey contextKey = "user_id"
+	claimsKey contextKey = "claims"
+)
 
-// Auth validates the Bearer token on a request and places the parsed
-// claims into the request context for downstream handlers. Requests
-// without a valid token are rejected with 401.
+// Auth validates the JWT Authorization header and adds the
+// authenticated user's ID and claims to the request context.
 func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header := r.Header.Get("Authorization")
-			if header == "" {
-				utils.WriteError(w, utils.NewValidationError("Authorization header is required.", nil))
+
+			authHeader := strings.TrimSpace(
+				r.Header.Get("Authorization"),
+			)
+
+			if authHeader == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "authorization header is required",
+				})
 				return
 			}
 
-			token, ok := strings.CutPrefix(header, "Bearer ")
-			if !ok || strings.TrimSpace(token) == "" {
-				utils.WriteError(w, utils.NewValidationError("Invalid authorization header.", nil))
+			parts := strings.SplitN(authHeader, " ", 2)
+
+			if len(parts) != 2 ||
+				!strings.EqualFold(parts[0], "Bearer") {
+
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid authorization header",
+				})
+				return
+			}
+
+			token := strings.TrimSpace(parts[1])
+
+			if token == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "token is required",
+				})
 				return
 			}
 
@@ -36,19 +58,73 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), claimsKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
+			if strings.TrimSpace(claims.UserID) == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid token claims",
+				})
+				return
+			}
+
+			// Add both the user ID and complete claims
+			// to the request context.
+			ctx := context.WithValue(
+				r.Context(),
+				userIDKey,
+				claims.UserID,
+			)
+
+			ctx = context.WithValue(
+				ctx,
+				claimsKey,
+				claims,
+			)
+
+			next.ServeHTTP(
+				w,
+				r.WithContext(ctx),
+			)
 		})
 	}
 }
 
-// ClaimsFromContext returns the authenticated user's claims from the
-// request context, or nil when the request is unauthenticated.
-func ClaimsFromContext(ctx context.Context) *utils.Claims {
+// GetUserID retrieves the authenticated user's ID from
+// the request context.
+func GetUserID(r *http.Request) (string, bool) {
+	userID, ok := r.Context().
+		Value(userIDKey).
+		(string)
+
+	if !ok || strings.TrimSpace(userID) == "" {
+		return "", false
+	}
+
+	return userID, true
+}
+
+// ClaimsFromContext retrieves the authenticated user's
+// JWT claims from the context.
+func ClaimsFromContext(
+	ctx context.Context,
+) *utils.Claims {
+
 	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
+
 	return claims
 }
 
+func writeJSON(
+	w http.ResponseWriter,
+	status int,
+	data interface{},
+) {
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(status)
+
+	_ = json.NewEncoder(w).Encode(data)
 // GetUserID is a convenience wrapper for the common case of just needing
 // the authenticated user's ID.
 func GetUserID(ctx context.Context) (string, bool) {
