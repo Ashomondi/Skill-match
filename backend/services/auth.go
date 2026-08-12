@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/google/uuid"
+	"github.com/google/uuid"
 
-	"skill-match/backend/repositories"
+	"skill-match/backend/models"
 	"skill-match/backend/utils"
 )
 
@@ -21,8 +21,8 @@ var (
 
 // UserRepository defines the database operations required by authentication.
 type UserRepository interface {
-	Create(ctx context.Context, user *repositories.User) (*repositories.User, error)
-	GetByEmail(ctx context.Context, email string) (*repositories.User, error)
+	Create(ctx context.Context, user *models.User) error
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
 // AuthService handles authentication business logic.
@@ -42,85 +42,77 @@ func NewAuthService(
 	}
 }
 
-// Register creates a new user account and returns the user plus an
-// authenticated session token.
+// Register creates a new user account.
 func (s *AuthService) Register(
 	ctx context.Context,
 	email string,
 	password string,
-	fullName string,
-) (*repositories.User, string, error) {
+) (*models.User, error) {
 
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	if !strings.Contains(email, "@") {
-		return nil, "", ErrInvalidEmail
+		return nil, ErrInvalidEmail
 	}
 
 	if len(password) < 8 {
-		return nil, "", ErrInvalidPassword
+		return nil, ErrInvalidPassword
 	}
 
 	// Check whether the email is already registered.
 	existingUser, err := s.userRepo.GetByEmail(ctx, email)
 
 	if err == nil && existingUser != nil {
-		return nil, "", ErrUserAlreadyExists
+		return nil, ErrUserAlreadyExists
 	}
 
 	// Hash the password before storing it.
 	hashedPassword, err := utils.HashPassword(password)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	now := time.Now()
 
-	created, err := s.userRepo.Create(ctx, &repositories.User{
-		ID:           uuid.NewString(),
-		Email:        email,
-		PasswordHash: hashedPassword,
-		FullName:     strings.TrimSpace(fullName),
-		IsActive:     true,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	})
-	if err != nil {
-		return nil, "", err
+	user := &models.User{
+		ID:        generateUserID(),
+		Email:     email,
+		Password:  hashedPassword,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
-	token, err := s.jwtManager.GenerateToken(created.ID, created.Email)
-	if err != nil {
-		return nil, "", err
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, err
 	}
 
 	// Never return the password hash.
-	created.PasswordHash = ""
+	user.Password = ""
 
-	return created, token, nil
+	return user, nil
 }
 
-// Login authenticates an existing user and returns the user plus a JWT.
+// Login authenticates an existing user and returns a JWT.
 func (s *AuthService) Login(
 	ctx context.Context,
 	email string,
 	password string,
-) (*repositories.User, string, error) {
+) (string, error) {
 
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		return nil, "", ErrInvalidCredentials
+		return "", ErrInvalidCredentials
 	}
 
 	if user == nil {
-		return nil, "", ErrInvalidCredentials
+		return "", ErrInvalidCredentials
 	}
 
 	// Compare the supplied password against the stored bcrypt hash.
-	if !utils.CheckPassword(password, user.PasswordHash) {
-		return nil, "", ErrInvalidCredentials
+	if !utils.CheckPassword(password, user.Password) {
+		return "", ErrInvalidCredentials
 	}
 
 	token, err := s.jwtManager.GenerateToken(
@@ -129,11 +121,13 @@ func (s *AuthService) Login(
 	)
 
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 
-	// Never return the password hash.
-	user.PasswordHash = ""
+	return token, nil
+}
 
-	return user, token, nil
+// generateUserID creates a simple unique user identifier.
+func generateUserID() string {
+	return time.Now().UTC().Format("20060102150405.000000000")
 }

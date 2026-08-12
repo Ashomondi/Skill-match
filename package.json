@@ -1,0 +1,13 @@
+{
+  "name": "skill-match",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "cd frontend && npm install && npx vite --host 0.0.0.0",
+    "build": "cd frontend && npm install && npx tsc && npx vite build",
+    "preview": "cd frontend && npx vite preview --host 0.0.0.0"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

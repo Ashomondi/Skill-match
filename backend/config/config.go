@@ -8,14 +8,6 @@ type Config struct {
 
 	AWSRegion string
 	S3Bucket  string
-
-	BedrockRegion  string
-	BedrockModelID string
-
-	MCPEndpoint string
-	MCPAPIKey   string
-	MCPClusterID string
-
 }
 
 func Load() *Config {
@@ -29,9 +21,5 @@ func Load() *Config {
 
 		AWSRegion: awsRegion(),
 		S3Bucket:  s3Bucket(),
-
-		BedrockRegion:  bedrockRegion(),
-		BedrockModelID: bedrockModelID(),
-		MCPClusterID: mcpClusterID(),
 	}
 }
