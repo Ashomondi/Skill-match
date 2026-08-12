@@ -7,6 +7,7 @@ import (
 
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
+	"skill-match/backend/middleware"
 )
 
 type ResumeHandler struct {
