@@ -19,18 +19,21 @@ import (
 var (
 	ErrResumeUploadFailed = errors.New("resume upload failed")
 	ErrResumeUpdateFailed = errors.New("resume update failed")
+	ErrResumeDeleteFailed = errors.New("resume delete failed")
 	ErrResumeNotFound     = errors.New("resume not found")
 	ErrResumeUnauthorized = errors.New("resume does not belong to user")
 )
 
 // ResumeRepository defines the database operations required
 // by the resume service.
-//
-// Sospeter's repository implementation must satisfy this interface.
 type ResumeRepository interface {
 	Create(ctx context.Context, resume *models.Resume) error
-	GetByID(ctx context.Context, userID, resumeID string) (*models.Resume, error)
+
+	GetByID(ctx context.Context, resumeID string) (*models.Resume, error)
+
 	Update(ctx context.Context, resume *models.Resume) error
+
+	Delete(ctx context.Context, resumeID string) error
 }
 
 // ObjectStorage defines the S3 operations required by the
@@ -78,8 +81,6 @@ func (s *ResumeService) Upload(
 	input UploadResumeInput,
 ) (*models.Resume, error) {
 
-	// Read the file while preventing oversized files from
-	// being loaded into memory.
 	data, err := io.ReadAll(
 		io.LimitReader(
 			input.File,
@@ -95,7 +96,6 @@ func (s *ResumeService) Upload(
 
 	actualSize := int64(len(data))
 
-	// Validate the file size reported by the multipart request.
 	if input.Size > 0 && input.Size != actualSize {
 		return nil, fmt.Errorf(
 			"%w: invalid file size",
@@ -103,7 +103,6 @@ func (s *ResumeService) Upload(
 		)
 	}
 
-	// Validate file type, size and content.
 	if err := utils.ValidateResume(
 		input.Filename,
 		actualSize,
@@ -127,7 +126,6 @@ func (s *ResumeService) Upload(
 
 	contentType := detectResumeContentType(extension)
 
-	// Upload the file to S3 first.
 	fileURL, err := s.storage.Upload(
 		ctx,
 		s3Key,
@@ -157,12 +155,8 @@ func (s *ResumeService) Upload(
 		UpdatedAt: now,
 	}
 
-	// Save metadata to CockroachDB.
 	if err := s.repository.Create(ctx, resume); err != nil {
-
 		// Database failed after S3 succeeded.
-		// Remove the uploaded object so we don't leave
-		// an orphaned file in S3.
 		_ = s.storage.Delete(ctx, s3Key)
 
 		return nil, fmt.Errorf(
@@ -191,11 +185,8 @@ func (s *ResumeService) Update(
 	input UpdateResumeInput,
 ) (*models.Resume, error) {
 
-	// Retrieve the resume while scoping the lookup to the
-	// authenticated user.
 	existing, err := s.repository.GetByID(
 		ctx,
-		input.UserID,
 		input.ResumeID,
 	)
 	if err != nil {
@@ -210,12 +201,10 @@ func (s *ResumeService) Update(
 		return nil, ErrResumeNotFound
 	}
 
-	// Extra ownership check.
 	if existing.UserID != input.UserID {
 		return nil, ErrResumeUnauthorized
 	}
 
-	// Read the replacement file.
 	data, err := io.ReadAll(
 		io.LimitReader(
 			input.File,
@@ -238,7 +227,6 @@ func (s *ResumeService) Update(
 		)
 	}
 
-	// Validate the replacement before modifying S3.
 	if err := utils.ValidateResume(
 		input.Filename,
 		actualSize,
@@ -253,10 +241,8 @@ func (s *ResumeService) Update(
 
 	contentType := detectResumeContentType(newExtension)
 
-	// Increase the resume version.
 	newVersion := existing.Version + 1
 
-	// Create a new S3 object for the replacement.
 	newS3Key := fmt.Sprintf(
 		"resumes/%s/%s-v%d%s",
 		input.UserID,
@@ -265,7 +251,6 @@ func (s *ResumeService) Update(
 		newExtension,
 	)
 
-	// Upload the new file first.
 	newFileURL, err := s.storage.Upload(
 		ctx,
 		newS3Key,
@@ -294,7 +279,6 @@ func (s *ResumeService) Update(
 	}
 
 	if err := s.repository.Update(ctx, updated); err != nil {
-
 		_ = s.storage.Delete(ctx, newS3Key)
 
 		return nil, fmt.Errorf(
@@ -304,8 +288,115 @@ func (s *ResumeService) Update(
 		)
 	}
 
-
 	return updated, nil
+}
+
+// Delete removes a resume from S3 and CockroachDB.
+//
+// Issue #12 uses hard delete because the current database schema
+// does not contain a deleted/archived status.
+func (s *ResumeService) Delete(
+	ctx context.Context,
+	userID string,
+	resumeID string,
+) error {
+
+	// Find the resume first.
+	resume, err := s.repository.GetByID(
+		ctx,
+		resumeID,
+	)
+	if err != nil {
+		if errors.Is(err, ErrResumeNotFound) {
+			return ErrResumeNotFound
+		}
+
+		return fmt.Errorf(
+			"%w: failed to find resume: %v",
+			ErrResumeDeleteFailed,
+			err,
+		)
+	}
+
+	if resume == nil {
+		return ErrResumeNotFound
+	}
+
+	// Make sure the authenticated user owns the resume.
+	if resume.UserID != userID {
+		return ErrResumeUnauthorized
+	}
+
+	// Build the S3 key for the current resume.
+	s3Key := buildResumeS3Key(resume)
+
+	// Delete the file from S3 first.
+	if s3Key != "" {
+		if err := s.storage.Delete(ctx, s3Key); err != nil {
+			return fmt.Errorf(
+				"%w: failed to delete resume file: %v",
+				ErrResumeDeleteFailed,
+				err,
+			)
+		}
+	}
+
+	// Delete metadata from CockroachDB.
+	if err := s.repository.Delete(ctx, resumeID); err != nil {
+		return fmt.Errorf(
+			"%w: failed to delete resume metadata: %v",
+			ErrResumeDeleteFailed,
+			err,
+		)
+	}
+
+	return nil
+}
+
+// buildResumeS3Key builds the S3 object key based on the
+// same naming convention used during upload/update.
+func buildResumeS3Key(resume *models.Resume) string {
+	if resume == nil {
+		return ""
+	}
+
+	if strings.TrimSpace(resume.UserID) == "" ||
+		strings.TrimSpace(resume.ID) == "" {
+		return ""
+	}
+
+	extension := strings.ToLower(
+		resume.FileType,
+	)
+
+	if extension == "" {
+		extension = strings.ToLower(
+			filepath.Ext(resume.Filename),
+		)
+	}
+
+	// Version 1 uses:
+	// resumes/{userID}/{resumeID}.pdf
+	//
+	// Updated versions use:
+	// resumes/{userID}/{resumeID}-v2.pdf
+	// resumes/{userID}/{resumeID}-v3.pdf
+	if resume.Version <= 1 {
+		return fmt.Sprintf(
+			"resumes/%s/%s%s",
+			resume.UserID,
+			resume.ID,
+			extension,
+		)
+	}
+
+	return fmt.Sprintf(
+		"resumes/%s/%s-v%d%s",
+		resume.UserID,
+		resume.ID,
+		resume.Version,
+		extension,
+	)
 }
 
 func detectResumeContentType(extension string) string {
