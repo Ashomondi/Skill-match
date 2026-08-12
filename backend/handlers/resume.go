@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"skill-match/backend/middleware"
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
 )
@@ -70,10 +71,8 @@ func (h *ResumeHandler) Upload(
 	}
 	defer file.Close()
 
-	userIDValue := r.Context().Value("user_id")
-
-	userID, ok := userIDValue.(string)
-	if !ok || strings.TrimSpace(userID) == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeResumeJSON(
 			w,
 			http.StatusUnauthorized,
