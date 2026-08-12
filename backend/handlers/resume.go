@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -233,7 +232,6 @@ func (h *ResumeHandler) Update(
 			Size:     header.Size,
 		},
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrResumeNotFound):
