@@ -15,6 +15,7 @@ type AuthHandler struct {
 type AuthRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	FullName string `json:"fullName"`
 }
 
 type AuthResponse struct {
@@ -48,10 +49,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.Register(
+	user, token, err := h.authService.Register(
 		r.Context(),
 		request.Email,
 		request.Password,
+		request.FullName,
 	)
 
 	if err != nil {
@@ -83,6 +85,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, AuthResponse{
 		Message: "account created successfully",
 		User:    user,
+		Token:   token,
 	})
 }
 
@@ -104,7 +107,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.Login(
+	user, token, err := h.authService.Login(
 		r.Context(),
 		request.Email,
 		request.Password,
@@ -126,6 +129,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, AuthResponse{
 		Message: "login successful",
+		User:    user,
 		Token:   token,
 	})
 }
