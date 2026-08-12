@@ -32,13 +32,13 @@ var (
 // to models.User (or the repository methods updated to accept/return it) as
 // soon as that file exists, to avoid two divergent definitions.
 type User struct {
-	ID           string
-	Email        string
-	PasswordHash string
-	FullName     string
-	IsActive     bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	FullName     string    `json:"fullName"`
+	IsActive     bool      `json:"isActive"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // UserRepository provides persistence operations for users backed by
