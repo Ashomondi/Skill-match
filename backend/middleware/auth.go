@@ -11,64 +11,91 @@ import (
 
 type contextKey string
 
-const userIDKey contextKey = "user_id"
-func Auth(jwtManager *utils.JWTManager, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+const (
+	userIDKey contextKey = "user_id"
+	claimsKey contextKey = "claims"
+)
 
-		authHeader := r.Header.Get("Authorization")
+// Auth validates the JWT Authorization header and adds the
+// authenticated user's ID and claims to the request context.
+func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		if authHeader == "" {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "authorization header is required",
-			})
-			return
-		}
+			authHeader := strings.TrimSpace(
+				r.Header.Get("Authorization"),
+			)
 
-		parts := strings.SplitN(authHeader, " ", 2)
+			if authHeader == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "authorization header is required",
+				})
+				return
+			}
 
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "invalid authorization header",
-			})
-			return
-		}
+			parts := strings.SplitN(authHeader, " ", 2)
 
-		token := strings.TrimSpace(parts[1])
+			if len(parts) != 2 ||
+				!strings.EqualFold(parts[0], "Bearer") {
 
-		if token == "" {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "token is required",
-			})
-			return
-		}
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid authorization header",
+				})
+				return
+			}
 
-		claims, err := jwtManager.ValidateToken(token)
-		if err != nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "invalid or expired token",
-			})
-			return
-		}
+			token := strings.TrimSpace(parts[1])
 
-		if strings.TrimSpace(claims.UserID) == "" {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "invalid token claims",
-			})
-			return
-		}
+			if token == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "token is required",
+				})
+				return
+			}
 
-		ctx := context.WithValue(
-			r.Context(),
-			userIDKey,
-			claims.UserID,
-		)
+			claims, err := jwtManager.ValidateToken(token)
+			if err != nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid or expired token",
+				})
+				return
+			}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			if strings.TrimSpace(claims.UserID) == "" {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid token claims",
+				})
+				return
+			}
+
+			// Add both the user ID and complete claims
+			// to the request context.
+			ctx := context.WithValue(
+				r.Context(),
+				userIDKey,
+				claims.UserID,
+			)
+
+			ctx = context.WithValue(
+				ctx,
+				claimsKey,
+				claims,
+			)
+
+			next.ServeHTTP(
+				w,
+				r.WithContext(ctx),
+			)
+		})
+	}
 }
 
+// GetUserID retrieves the authenticated user's ID from
+// the request context.
 func GetUserID(r *http.Request) (string, bool) {
-	userID, ok := r.Context().Value(userIDKey).(string)
+	userID, ok := r.Context().
+		Value(userIDKey).
+		(string)
 
 	if !ok || strings.TrimSpace(userID) == "" {
 		return "", false
@@ -77,51 +104,28 @@ func GetUserID(r *http.Request) (string, bool) {
 	return userID, true
 }
 
+// ClaimsFromContext retrieves the authenticated user's
+// JWT claims from the context.
+func ClaimsFromContext(
+	ctx context.Context,
+) *utils.Claims {
+
+	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
+
+	return claims
+}
+
 func writeJSON(
 	w http.ResponseWriter,
 	status int,
 	data interface{},
 ) {
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
 	w.WriteHeader(status)
 
 	_ = json.NewEncoder(w).Encode(data)
-}
-const claimsKey contextKey = "claims"
-
-// Auth validates the Bearer token on a request and places the parsed
-// claims into the request context for downstream handlers. Requests
-// without a valid token are rejected with 401.
-func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header := r.Header.Get("Authorization")
-			if header == "" {
-				http.Error(w, "missing authorization header", http.StatusUnauthorized)
-				return
-			}
-
-			token, ok := strings.CutPrefix(header, "Bearer ")
-			if !ok || token == "" {
-				http.Error(w, "invalid authorization header", http.StatusUnauthorized)
-				return
-			}
-
-			claims, err := jwtManager.ValidateToken(token)
-			if err != nil {
-				http.Error(w, "invalid or expired token", http.StatusUnauthorized)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), claimsKey, claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
-// ClaimsFromContext returns the authenticated user's claims from the
-// request context, or nil when the request is unauthenticated.
-func ClaimsFromContext(ctx context.Context) *utils.Claims {
-	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
-	return claims
 }
