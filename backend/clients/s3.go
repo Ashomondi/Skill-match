@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
+     "io"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -75,4 +75,22 @@ func (c *S3Client) Delete(ctx context.Context, key string) error {
 		return fmt.Errorf("deleting key %s: %w", key, err)
 	}
 	return nil
+}
+
+
+func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error) {
+	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("downloading key %s: %w", key, err)
+	}
+	defer result.Body.Close()
+
+	data, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading downloaded content for key %s: %w", key, err)
+	}
+	return data, nil
 }

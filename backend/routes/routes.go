@@ -18,13 +18,9 @@ func RegisterHealth(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", healthHandler)
 }
 
-func RegisterResumeRoutes(
-	mux *http.ServeMux,
-	resumeHandler *handlers.ResumeHandler,
-) {
-	mux.HandleFunc("POST /api/resumes", resumeHandler.Upload)
-	mux.HandleFunc("GET /api/resumes", resumeHandler.List)
-	mux.HandleFunc("GET /api/resumes/{id}", resumeHandler.Get)
+func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {
+	mux.HandleFunc("POST /api/auth/register", h.Register)
+	mux.HandleFunc("POST /api/auth/login", h.Login)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
