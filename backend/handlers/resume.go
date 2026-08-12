@@ -227,7 +227,7 @@ func writeResumeJSON(
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	// We intentionally ignore encoding errors here because the
-	// response headers have already been written.
-	writeJSON(w, status, data)
+	// Encode directly here instead of calling another undefined
+	// writeJSON function.
+	_ = json.NewEncoder(w).Encode(data)
 }
