@@ -17,14 +17,13 @@ import (
 )
 
 var (
-    ErrResumeUploadFailed = errors.New("resume upload failed")
-    ErrResumeUpdateFailed = errors.New("resume update failed")
-    ErrResumeDeleteFailed = errors.New("resume delete failed")
-    ErrResumeNotFound     = errors.New("resume not found")
+	ErrResumeUploadFailed = errors.New("resume upload failed")
+	ErrResumeUpdateFailed = errors.New("resume update failed")
+	ErrResumeDeleteFailed = errors.New("resume delete failed")
+	ErrResumeNotFound     = errors.New("resume not found")
+	ErrResumeUnauthorized = errors.New("resume does not belong to user")
 )
 
-// ResumeRepository defines the database operations required
-// by the resume service.
 type ResumeRepository interface {
 	Create(ctx context.Context, resume *models.Resume) error
 
@@ -35,8 +34,6 @@ type ResumeRepository interface {
 	Delete(ctx context.Context, resumeID string) error
 }
 
-// ObjectStorage defines the S3 operations required by the
-// resume service.
 type ObjectStorage interface {
 	Upload(
 		ctx context.Context,
@@ -48,13 +45,11 @@ type ObjectStorage interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// ResumeService handles resume business logic.
 type ResumeService struct {
 	repository ResumeRepository
 	storage    ObjectStorage
 }
 
-// NewResumeService creates a new ResumeService.
 func NewResumeService(
 	repository ResumeRepository,
 	storage ObjectStorage,
@@ -65,7 +60,6 @@ func NewResumeService(
 	}
 }
 
-// UploadResumeInput contains the information needed to upload a resume.
 type UploadResumeInput struct {
 	UserID   string
 	Filename string
@@ -73,8 +67,6 @@ type UploadResumeInput struct {
 	Size     int64
 }
 
-// Upload uploads a new resume to S3 and stores its metadata
-// in CockroachDB.
 func (s *ResumeService) Upload(
 	ctx context.Context,
 	input UploadResumeInput,
@@ -155,7 +147,6 @@ func (s *ResumeService) Upload(
 	}
 
 	if err := s.repository.Create(ctx, resume); err != nil {
-		// Database failed after S3 succeeded.
 		_ = s.storage.Delete(ctx, s3Key)
 
 		return nil, fmt.Errorf(
@@ -168,8 +159,6 @@ func (s *ResumeService) Upload(
 	return resume, nil
 }
 
-// UpdateResumeInput contains the information needed to replace
-// an existing resume.
 type UpdateResumeInput struct {
 	UserID   string
 	ResumeID string
@@ -178,7 +167,6 @@ type UpdateResumeInput struct {
 	Size     int64
 }
 
-// Update replaces an existing resume with a new file.
 func (s *ResumeService) Update(
 	ctx context.Context,
 	input UpdateResumeInput,
@@ -290,17 +278,12 @@ func (s *ResumeService) Update(
 	return updated, nil
 }
 
-// Delete removes a resume from S3 and CockroachDB.
-//
-// Issue #12 uses hard delete because the current database schema
-// does not contain a deleted/archived status.
 func (s *ResumeService) Delete(
 	ctx context.Context,
 	userID string,
 	resumeID string,
 ) error {
 
-	// Find the resume first.
 	resume, err := s.repository.GetByID(
 		ctx,
 		resumeID,
@@ -321,15 +304,12 @@ func (s *ResumeService) Delete(
 		return ErrResumeNotFound
 	}
 
-	// Make sure the authenticated user owns the resume.
 	if resume.UserID != userID {
 		return ErrResumeUnauthorized
 	}
 
-	// Build the S3 key for the current resume.
 	s3Key := buildResumeS3Key(resume)
 
-	// Delete the file from S3 first.
 	if s3Key != "" {
 		if err := s.storage.Delete(ctx, s3Key); err != nil {
 			return fmt.Errorf(
@@ -340,7 +320,6 @@ func (s *ResumeService) Delete(
 		}
 	}
 
-	// Delete metadata from CockroachDB.
 	if err := s.repository.Delete(ctx, resumeID); err != nil {
 		return fmt.Errorf(
 			"%w: failed to delete resume metadata: %v",
@@ -352,8 +331,6 @@ func (s *ResumeService) Delete(
 	return nil
 }
 
-// buildResumeS3Key builds the S3 object key based on the
-// same naming convention used during upload/update.
 func buildResumeS3Key(resume *models.Resume) string {
 	if resume == nil {
 		return ""
@@ -374,12 +351,6 @@ func buildResumeS3Key(resume *models.Resume) string {
 		)
 	}
 
-	// Version 1 uses:
-	// resumes/{userID}/{resumeID}.pdf
-	//
-	// Updated versions use:
-	// resumes/{userID}/{resumeID}-v2.pdf
-	// resumes/{userID}/{resumeID}-v3.pdf
 	if resume.Version <= 1 {
 		return fmt.Sprintf(
 			"resumes/%s/%s%s",

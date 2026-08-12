@@ -1,0 +1,466 @@
+openapi: 3.0.3
+
+info:
+  title: Skill-Match API
+  version: 1.0.0
+  description: |
+    REST API documentation for the Skill-Match application.
+
+    The resume API allows authenticated users to upload, update,
+    and delete their resumes.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Resumes
+    description: Resume management endpoints
+
+paths:
+
+  /api/resumes:
+    post:
+      summary: Upload a resume
+      description: |
+        Upload a PDF or DOCX resume for the authenticated user.
+
+        The uploaded resume must:
+        - Be in PDF or DOCX format
+        - Not exceed 5 MB
+        - Contain valid file content matching its extension
+
+      operationId: uploadResume
+      tags:
+        - Resumes
+
+      security:
+        - bearerAuth: []
+
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - resume
+              properties:
+                resume:
+                  type: string
+                  format: binary
+                  description: |
+                    Resume file in PDF or DOCX format.
+                    Maximum allowed size is 5 MB.
+
+      responses:
+
+        '201':
+          description: Resume uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResumeResponse'
+              example:
+                message: resume uploaded successfully
+                resume_id: "550e8400-e29b-41d4-a716-446655440000"
+                status: uploaded
+                resume:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  status: uploaded
+                  version: 1
+
+        '400':
+          description: Invalid resume upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidForm:
+                  summary: Invalid multipart form
+                  value:
+                    error: invalid multipart form
+
+                missingFile:
+                  summary: Resume file missing
+                  value:
+                    error: resume file is required
+
+                invalidType:
+                  summary: Invalid file type
+                  value:
+                    error: only PDF and DOCX resumes are allowed
+
+                tooLarge:
+                  summary: File exceeds size limit
+                  value:
+                    error: resume must not exceed 5 MB
+
+                emptyFile:
+                  summary: Empty file
+                  value:
+                    error: resume file cannot be empty
+
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: authentication required
+
+        '500':
+          description: Internal server error while uploading the resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: failed to upload resume
+
+
+  /api/resumes/{id}:
+
+    put:
+      summary: Update a resume
+      description: |
+        Replace an existing resume belonging to the authenticated user.
+
+        The new resume must:
+        - Be in PDF or DOCX format
+        - Not exceed 5 MB
+        - Contain valid file content matching its extension
+
+      operationId: updateResume
+      tags:
+        - Resumes
+
+      security:
+        - bearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the resume
+          schema:
+            type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - resume
+              properties:
+                resume:
+                  type: string
+                  format: binary
+                  description: |
+                    Replacement resume file in PDF or DOCX format.
+                    Maximum allowed size is 5 MB.
+
+      responses:
+
+        '200':
+          description: Resume updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateResumeResponse'
+              example:
+                message: resume updated successfully
+                resume_id: "550e8400-e29b-41d4-a716-446655440000"
+                version: 2
+                status: uploaded
+                resume:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  status: uploaded
+                  version: 2
+
+        '400':
+          description: Invalid request or resume file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidForm:
+                  summary: Invalid multipart form
+                  value:
+                    error: invalid multipart form
+
+                missingFile:
+                  summary: Resume file missing
+                  value:
+                    error: resume file is required
+
+                missingId:
+                  summary: Resume ID missing
+                  value:
+                    error: resume ID is required
+
+                invalidType:
+                  summary: Invalid file type
+                  value:
+                    error: only PDF and DOCX resumes are allowed
+
+                tooLarge:
+                  summary: File exceeds size limit
+                  value:
+                    error: resume must not exceed 5 MB
+
+                emptyFile:
+                  summary: Empty file
+                  value:
+                    error: resume file cannot be empty
+
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: authentication required
+
+        '403':
+          description: User does not have permission to update this resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: you do not have permission to update this resume
+
+        '404':
+          description: Resume not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: resume not found
+
+        '500':
+          description: Internal server error while updating the resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: failed to update resume
+
+
+    delete:
+      summary: Delete a resume
+      description: |
+        Delete a resume belonging to the authenticated user.
+
+      operationId: deleteResume
+      tags:
+        - Resumes
+
+      security:
+        - bearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique identifier of the resume
+          schema:
+            type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+      responses:
+
+        '200':
+          description: Resume deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResumeResponse'
+              example:
+                message: resume deleted successfully
+                resume_id: "550e8400-e29b-41d4-a716-446655440000"
+
+        '400':
+          description: Resume ID is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: resume ID is required
+
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: authentication required
+
+        '403':
+          description: User does not have permission to delete this resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: you do not have permission to delete this resume
+
+        '404':
+          description: Resume not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: resume not found
+
+        '500':
+          description: Internal server error while deleting the resume
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: failed to delete resume
+
+
+components:
+
+  securitySchemes:
+
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT authentication.
+
+        Include the token in the Authorization header:
+
+        Authorization: Bearer <JWT_TOKEN>
+
+
+  schemas:
+
+    Resume:
+      type: object
+      description: Resume resource returned by the API.
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the resume
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+        status:
+          type: string
+          description: Current processing status of the resume
+          example: uploaded
+
+        version:
+          type: integer
+          description: Resume version number
+          example: 1
+
+      required:
+        - id
+        - status
+        - version
+
+
+    UploadResumeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: resume uploaded successfully
+
+        resume_id:
+          type: string
+          description: Unique identifier of the uploaded resume
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+        status:
+          type: string
+          example: uploaded
+
+        resume:
+          $ref: '#/components/schemas/Resume'
+
+      required:
+        - message
+        - resume_id
+        - status
+        - resume
+
+
+    UpdateResumeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: resume updated successfully
+
+        resume_id:
+          type: string
+          description: Unique identifier of the updated resume
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+        version:
+          type: integer
+          description: New version number of the resume
+          example: 2
+
+        status:
+          type: string
+          example: uploaded
+
+        resume:
+          $ref: '#/components/schemas/Resume'
+
+      required:
+        - message
+        - resume_id
+        - version
+        - status
+        - resume
+
+
+    DeleteResumeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: resume deleted successfully
+
+        resume_id:
+          type: string
+          description: Unique identifier of the deleted resume
+          example: "550e8400-e29b-41d4-a716-446655440000"
+
+      required:
+        - message
+        - resume_id
+
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: resume not found
+
+      required:
+        - error
