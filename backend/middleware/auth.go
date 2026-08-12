@@ -11,10 +11,11 @@ import (
 
 type contextKey string
 
-const claimsKey contextKey = "claims"
+const (
+	userIDKey contextKey = "userID"
+	claimsKey contextKey = "claims"
+)
 
-// Auth validates the JWT Authorization header and adds the authenticated
-// user's claims to the request context.
 func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
