@@ -10,8 +10,6 @@ import (
 
 	"skill-match/backend/repositories"
 	"skill-match/backend/utils"
-
-	"github.com/google/uuid"
 )
 
 var (
