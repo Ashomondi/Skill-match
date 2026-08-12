@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -37,7 +38,9 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 
 			claims, err := jwtManager.ValidateToken(token)
 			if err != nil {
-				utils.WriteError(w, utils.NewValidationError("Invalid or expired token.", nil))
+				writeJSON(w, http.StatusUnauthorized, map[string]string{
+					"error": "invalid or expired token",
+				})
 				return
 			}
 
@@ -46,12 +49,36 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), claimsKey, claims)
+			ctx := context.WithValue(
+				r.Context(),
+				userIDKey,
+				claims.UserID,
+			)
+
+			ctx = context.WithValue(
+				ctx,
+				claimsKey,
+				claims,
+			)
+
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
+// GetUserID retrieves the authenticated user's ID from the request context.
+func GetUserID(r *http.Request) (string, bool) {
+	userID, ok := r.Context().
+		Value(userIDKey).(string)
+
+	if !ok || strings.TrimSpace(userID) == "" {
+		return "", false
+	}
+
+	return userID, true
+}
+
+// ClaimsFromContext retrieves JWT claims from the context.
 // ClaimsFromContext retrieves the authenticated user's JWT claims from
 // the context, or nil if unauthenticated.
 func ClaimsFromContext(ctx context.Context) *utils.Claims {
@@ -59,12 +86,13 @@ func ClaimsFromContext(ctx context.Context) *utils.Claims {
 	return claims
 }
 
-// GetUserID is a convenience wrapper for the common case of just needing
-// the authenticated user's ID.
-func GetUserID(ctx context.Context) (string, bool) {
-	claims := ClaimsFromContext(ctx)
-	if claims == nil || strings.TrimSpace(claims.UserID) == "" {
-		return "", false
-	}
-	return claims.UserID, true
+func writeJSON(
+	w http.ResponseWriter,
+	status int,
+	data interface{},
+) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	_ = json.NewEncoder(w).Encode(data)
 }
