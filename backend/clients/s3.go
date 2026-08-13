@@ -94,3 +94,13 @@ func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error) {
 	}
 	return data, nil
 }
+
+func (c *S3Client) Ping(ctx context.Context) error {
+	_, err := c.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(c.bucket),
+	})
+	if err != nil {
+		return fmt.Errorf("pinging bucket %s: %w", c.bucket, err)
+	}
+	return nil
+}

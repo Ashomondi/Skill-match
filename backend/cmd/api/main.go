@@ -23,14 +23,14 @@ import (
 func main() {
 	cfg := config.Load()
 
+	ctx := context.Background()
+
 	jwtManager := utils.NewJWTManager(jwtSecret(cfg), 24*time.Hour)
 
 	mux := routes.NewMux()
 
 	var pool *pgxpool.Pool
 	if cfg.DatabaseURL != "" {
-		ctx := context.Background()
-
 		var err error
 		pool, err = clients.NewPool(ctx, cfg.DatabaseURL, clients.PoolOptions{})
 		if err != nil {
@@ -48,7 +48,18 @@ func main() {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
 	}
 
-	healthHandler := handlers.NewHealthHandler(pool)
+	var s3Client *clients.S3Client
+	if cfg.S3Bucket != "" {
+		var err error
+		s3Client, err = clients.NewS3Client(ctx, cfg.AWSRegion, cfg.S3Bucket)
+		if err != nil {
+			log.Printf("WARNING: failed to connect to S3: %v — storage health checks disabled", err)
+		}
+	} else {
+		log.Println("WARNING: S3_BUCKET_NAME not set — storage health checks disabled")
+	}
+
+	healthHandler := handlers.NewHealthHandler(pool, s3Client)
 	routes.RegisterAll(mux,
 		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
 	)
