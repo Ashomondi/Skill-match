@@ -1,3 +1,116 @@
-import React,{useState}from'react'; import { FileText, Search } from'lucide-react'; import { AppShell } from'../components/AppShell';
-const rows=[['A','Senior Product Designer','Acme Corp','Jul 28, 2026','Applied'],['G','Lead UX Researcher','Globex','Jul 20, 2026','Interview'],['S','UI Engineer','Stark Industries','Jul 15, 2026','Rejected']]; const colors:any={Applied:'var(--status-applied)',Screening:'var(--status-screening)',Interview:'var(--status-interview)',Offer:'var(--status-offer)',Rejected:'var(--status-rejected)'};
-export const Applications:React.FC=()=>{const [active,setActive]=useState('All');const [query,setQuery]=useState('');const tabs=['All 12','Applied 6','Screening 2','Interview','Offer 1','Rejected 0'];return <AppShell><h1 className="font-serif text-4xl font-bold text-[var(--text-heading)]">Your Applications</h1><p className="mt-2">Track and manage your tailored CV submissions.</p><div className="mt-7 flex flex-wrap gap-2">{tabs.map(t=>{const n=t.split(' ')[0];return <button onClick={()=>setActive(n)} className={`rounded-full px-4 py-2 text-sm ${active===n?'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)]':'bg-[var(--bg-chip)]'}`} key={t}>{t}</button>})}</div><div className="mt-6 flex items-center gap-2 rounded border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3"><Search size={18}/><input value={query} onChange={e=>setQuery(e.target.value)} className="h-11 flex-1 bg-transparent outline-none" placeholder="Search roles or companies"/></div><div className="mt-5 overflow-x-auto rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)]"><table className="w-full min-w-[650px] text-left text-sm"><thead className="border-b border-[var(--border-hairline)] text-xs text-[var(--text-muted)]"><tr><th className="p-4">ROLE & COMPANY</th><th>DATE APPLIED</th><th>STATUS</th><th>TAILORED CV</th></tr></thead><tbody>{rows.filter(r=>(active==='All'||r[4]===active)&&r.slice(1,3).join(' ').toLowerCase().includes(query.toLowerCase())).map(r=><tr className="border-b border-[var(--border-hairline)] last:border-0" key={r[1]}><td className="p-4"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-card)]">{r[0]}</span><span><b className="text-[var(--text-heading)]">{r[1]}</b><small className="block">{r[2]}</small></span></div></td><td>{r[3]}</td><td><span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full" style={{background:colors[r[4]]}}/>{r[4]}</span></td><td><button aria-label="View tailored CV"><FileText size={18}/></button></td></tr>)}</tbody></table></div></AppShell>};
+import React, { useEffect, useState } from 'react';
+import { applicationService, Application, UpdateApplicationDTO } from '../services/applications';
+import { ApplicationCard } from '../components/applications/ApplicationCard';
+
+export const Applications: React.FC = () => {
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchApplications = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await applicationService.getApplications();
+      setApplications(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load applications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const handleUpdate = async (id: string, data: UpdateApplicationDTO) => {
+    const updated = await applicationService.updateApplication(id, data);
+    setApplications((prev) =>
+      prev.map((app) => (app.id === id ? updated : app))
+    );
+  };
+
+  const handleDelete = async (id: string) => {
+    await applicationService.deleteApplication(id);
+    setApplications((prev) => prev.filter((app) => app.id !== id));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="bg-red-50 border-l-4 border-red-400 p-4">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+              <button
+                onClick={fetchApplications}
+                className="mt-2 text-sm font-medium text-red-700 underline hover:text-red-600"
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Job Applications</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Track and manage your ongoing job hunt pipeline.
+          </p>
+        </div>
+        <span className="bg-indigo-100 text-indigo-800 text-sm font-semibold px-3 py-1 rounded-full">
+          Total: {applications.length}
+        </span>
+      </div>
+
+      {applications.length === 0 ? (
+        <div className="text-center bg-white rounded-lg shadow-sm border border-gray-200 p-12">
+          <svg
+            className="mx-auto h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No applications tracked</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Get started by exploring recommendations and saving or tracking applications.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {applications.map((app) => (
+            <ApplicationCard
+              key={app.id}
+              application={app}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
