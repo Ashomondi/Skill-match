@@ -20,7 +20,6 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-
 func mustGetEnv(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
@@ -55,4 +54,8 @@ func mcpAPIKey() string {
 
 func mcpClusterID() string {
 	return getEnv("MCP_CLUSTER_ID", "")
+}
+
+func bedrockEmbedModelID() string {
+	return getEnv("BEDROCK_EMBED_MODEL_ID", "")
 }

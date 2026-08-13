@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+
+	"skill-match/backend/repositories"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -48,6 +51,14 @@ type modelResponse struct {
 	Content []struct {
 		Text string `json:"text"`
 	} `json:"content"`
+}
+
+type embedRequest struct {
+	InputText string `json:"inputText"`
+}
+
+type embedResponse struct {
+	Embedding []float32 `json:"embedding"`
 }
 
 func (c *BedrockClient) GenerateResponse(ctx context.Context, prompt string) (string, error) {
@@ -106,4 +117,36 @@ func ClassifyBedrockError(err error) string {
 		}
 	}
 	return "Something went wrong. Please try again."
+}
+
+func (c *BedrockClient) GenerateEmbedding(ctx context.Context, embedModelID, text string) ([]float32, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("text is required to generate an embedding")
+	}
+
+	body := embedRequest{InputText: text}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling embed request: %w", err)
+	}
+
+	result, err := c.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+		ModelId:     aws.String(embedModelID),
+		ContentType: aws.String("application/json"),
+		Body:        payload,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("invoking bedrock embedding model %s: %w", embedModelID, err)
+	}
+
+	var response embedResponse
+	if err := json.Unmarshal(result.Body, &response); err != nil {
+		return nil, fmt.Errorf("parsing embedding response: %w", err)
+	}
+
+	if len(response.Embedding) != repositories.EmbeddingDim {
+		return nil, fmt.Errorf("unexpected embedding dimension: got %d, want %d", len(response.Embedding), repositories.EmbeddingDim)
+	}
+
+	return response.Embedding, nil
 }
