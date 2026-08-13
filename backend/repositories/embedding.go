@@ -15,7 +15,14 @@ import (
 // column in migrations/003_memory.sql (Titan Embeddings V2). Changing the
 // embedding model requires a new migration and backfill; this constant
 // exists so callers get a clear error instead of a cryptic driver failure.
-const EmbeddingDim = 1536
+
+
+/*Fixed a bug: embeddings.vector was VECTOR(1536), commented as Titan V2,
+but V2 actually maxes at 1024 dims (1536 was G1's number). Applied migration
+006 to correct it — table was empty, so no backfill needed. Verified via
+psql: column is now VECTOR(1024), index recreated. Let me know if you had
+a different reason for 1536 that I'm missing.*/
+const EmbeddingDim = 1024
 
 // Sentinel errors for embedding operations.
 var (
