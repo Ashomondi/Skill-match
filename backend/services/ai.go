@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"skill-match/backend/clients"
 	"skill-match/backend/repositories"
+	"skill-match/backend/utils"
 )
 
 var (
@@ -49,18 +51,8 @@ func (s *AIService) GenerateResponse(
 	ctx context.Context,
 	input AIRequest,
 ) (*AIResponse, error) {
-	if strings.TrimSpace(input.UserID) == "" {
-		return nil, fmt.Errorf(
-			"%w: user ID is required",
-			ErrAIInvalidInput,
-		)
-	}
-
-	if strings.TrimSpace(input.Message) == "" {
-		return nil, fmt.Errorf(
-			"%w: message is required",
-			ErrAIInvalidInput,
-		)
+	if err := validateAIRequest(input); err != nil {
+		return nil, err
 	}
 
 	if s.bedrock == nil {
@@ -149,18 +141,17 @@ func (s *AIService) GenerateResponse(
 	}
 
 	// Send the complete context to Amazon Bedrock.
-	response, err := s.bedrock.GenerateResponse(
-		ctx,
-		prompt,
-	)
+	response, err := s.bedrock.GenerateResponse(ctx, prompt)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: %v",
-			ErrAIService,
-			err,
-		)
+		log.Printf("[ai] bedrock request failed for user=%s: %v", input.UserID, err)
+		return nil, &utils.AppError{
+			Category:   utils.CategoryInternal,
+			UserMsg:    clients.ClassifyBedrockError(err),
+			StatusCode: 502,
+			Err:        err,
+			Context:    map[string]string{"user_id": input.UserID},
+		}
 	}
-
 	response = strings.TrimSpace(response)
 
 	if response == "" {
@@ -173,4 +164,22 @@ func (s *AIService) GenerateResponse(
 	return &AIResponse{
 		Message: response,
 	}, nil
+}
+
+const maxAIMessageLength = 4000
+
+func validateAIRequest(input AIRequest) error {
+	if strings.TrimSpace(input.UserID) == "" {
+		return utils.NewValidationError("User ID is required.", nil)
+	}
+	if strings.TrimSpace(input.Message) == "" {
+		return utils.NewValidationError("Please enter a message.", nil)
+	}
+	if len(strings.TrimSpace(input.Message)) > maxAIMessageLength {
+		return utils.NewValidationError(
+			fmt.Sprintf("Your message is too long (max %d characters).", maxAIMessageLength),
+			nil,
+		)
+	}
+	return nil
 }
