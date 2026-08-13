@@ -14,8 +14,8 @@ func RegisterAll(mux *http.ServeMux, registrars ...RegisterFunc) {
 	}
 }
 
-func RegisterHealth(mux *http.ServeMux) {
-	mux.HandleFunc("GET /health", healthHandler)
+func RegisterHealth(mux *http.ServeMux, healthHandler *handlers.HealthHandler) {
+	mux.HandleFunc("GET /health", healthHandler.Health)
 }
 
 func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {

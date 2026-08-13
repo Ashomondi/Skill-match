@@ -16,6 +16,8 @@ import (
 	"skill-match/backend/routes"
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -24,32 +26,32 @@ func main() {
 	jwtManager := utils.NewJWTManager(jwtSecret(cfg), 24*time.Hour)
 
 	mux := routes.NewMux()
-	routes.RegisterAll(mux,
-		routes.RegisterHealth,
-	)
 
+	var pool *pgxpool.Pool
 	if cfg.DatabaseURL != "" {
 		ctx := context.Background()
 
-		pool, err := clients.NewPool(ctx, cfg.DatabaseURL, clients.PoolOptions{})
+		var err error
+		pool, err = clients.NewPool(ctx, cfg.DatabaseURL, clients.PoolOptions{})
 		if err != nil {
 			log.Fatalf("connect to database: %v", err)
 		}
 		defer pool.Close()
 
 		authService := services.NewAuthService(
-	repositories.NewUserRepository(pool),
-	jwtManager,
-)
+			repositories.NewUserRepository(pool),
+			jwtManager,
+		)
 
-routes.RegisterAuth(
-	mux,
-	handlers.NewAuthHandler(authService),
-)
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
 	}
+
+	healthHandler := handlers.NewHealthHandler(pool)
+	routes.RegisterAll(mux,
+		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
+	)
 
 	handler := middleware.Chain(mux,
 		middleware.Recovery,
@@ -63,9 +65,6 @@ routes.RegisterAuth(
 	}
 }
 
-// jwtSecret returns the configured JWT secret, or an ephemeral random
-// secret for development when JWT_SECRET is not set. Set JWT_SECRET in
-// production so sessions survive restarts.
 func jwtSecret(cfg *config.Config) string {
 	if cfg.JWTSecret != "" {
 		return cfg.JWTSecret

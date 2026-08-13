@@ -309,3 +309,11 @@ Amazon S3
 
 ## 16. End-to-End User Journey
 Register → Complete profile → Upload resume → AI analyzes profile → Search jobs → Receive recommendations → Save/apply → AI remembers and improves future recommendations.
+
+## 17. Health Checks
+
+`GET /health` reports overall service status and reachability of critical
+dependencies (currently: database). Returns 200 when all dependencies are
+reachable, 503 if any are down — suitable for load balancer / orchestrator
+health probes. Dependency errors are reported generically (e.g. "database
+unreachable"), never with raw connection strings or driver error detail.
