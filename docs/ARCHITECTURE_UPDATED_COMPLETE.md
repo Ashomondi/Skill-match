@@ -226,6 +226,43 @@ Upload → S3 → Parse → Embed → CockroachDB → Match Jobs
 ## 10. Job Recommendation Pipeline
 Query → Retrieve Memory → Semantic Search → Rank → Bedrock → Response
 
+## 10a. Implemented: Bedrock, MCP & Memory Flow (Hackathon Submission Detail)
+
+This section documents what is actually implemented and tested as of the
+hackathon submission, as required by the judging criteria for agentic
+memory design.
+
+### Amazon Bedrock
+`clients/bedrock.go` wraps AWS Bedrock behind a `BedrockGenerator` interface,
+so the rest of the app never depends on which specific model is configured.
+Errors are classified (`ClassifyBedrockError`) into safe, non-technical
+messages — throttling, timeouts, validation, and access errors are each
+handled distinctly rather than surfacing raw AWS errors to users.
+
+### CockroachDB Managed MCP Server
+`clients/mcp.go` connects to `https://cockroachlabs.cloud/mcp`, authenticated
+via a scoped API key and cluster ID header. This gives the agent a secure,
+auditable channel to the memory layer, rather than the backend hardcoding
+every possible query in advance.
+
+### Conversation & Memory Flow (as implemented in services/ai.go)
+1. Request validated (non-empty, ≤4000 characters).
+2. Recent conversation history retrieved from CockroachDB.
+3. If a resume is attached, its previously parsed text (see
+   services/resume_parser.go) is retrieved and appended as context, with an
+   ownership check preventing cross-user data leakage.
+4. Assembled prompt sent to Bedrock.
+5. Response validated and returned; failures logged with user ID and error
+   detail only — never prompt content or credentials — then translated into
+   a safe user-facing message via the shared AppError system
+   (utils/errors.go).
+
+### CockroachDB's role, concretely
+CockroachDB is the single persistent store behind every memory type in
+Section 8 (profile, resume text, conversation history) — the agent's
+recommendations and responses depend on data written and read from
+CockroachDB on every request, not a separate cache or vector store.
+
 ## 11. APIs
 /auth
 /users
