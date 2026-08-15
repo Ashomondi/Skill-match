@@ -77,8 +77,8 @@ func main() {
 	)
 
 	handler := middleware.Chain(mux,
-		middleware.Recovery,
 		middleware.Logging,
+		middleware.Recovery,
 		middleware.CORS,
 	)
 

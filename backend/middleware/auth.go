@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -21,32 +20,30 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 			if authHeader == "" {
-				utils.WriteError(w, utils.NewValidationError("Authorization header is required.", nil))
+				utils.WriteRequestError(w, r, utils.NewAuthError("Authentication is required.", http.StatusUnauthorized))
 				return
 			}
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				utils.WriteError(w, utils.NewValidationError("Invalid authorization header.", nil))
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid authorization header.", http.StatusUnauthorized))
 				return
 			}
 
 			token := strings.TrimSpace(parts[1])
 			if token == "" {
-				utils.WriteError(w, utils.NewValidationError("Token is required.", nil))
+				utils.WriteRequestError(w, r, utils.NewAuthError("Authentication is required.", http.StatusUnauthorized))
 				return
 			}
 
 			claims, err := jwtManager.ValidateToken(token)
 			if err != nil {
-				writeJSON(w, http.StatusUnauthorized, map[string]string{
-					"error": "invalid or expired token",
-				})
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid or expired token.", http.StatusUnauthorized))
 				return
 			}
 
 			if strings.TrimSpace(claims.UserID) == "" {
-				utils.WriteError(w, utils.NewValidationError("Invalid token claims.", nil))
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid authentication claims.", http.StatusUnauthorized))
 				return
 			}
 
@@ -85,15 +82,4 @@ func GetUserID(r *http.Request) (string, bool) {
 func ClaimsFromContext(ctx context.Context) *utils.Claims {
 	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
 	return claims
-}
-
-func writeJSON(
-	w http.ResponseWriter,
-	status int,
-	data interface{},
-) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	_ = json.NewEncoder(w).Encode(data)
 }

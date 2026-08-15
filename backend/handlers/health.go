@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"skill-match/backend/clients"
+	"skill-match/backend/utils"
 )
 
 type HealthHandler struct {
@@ -25,7 +26,7 @@ type dependencyStatus struct {
 }
 
 type healthResponse struct {
-	Status       string                       `json:"status"`
+	Status       string                      `json:"status"`
 	Dependencies map[string]dependencyStatus `json:"dependencies"`
 }
 
@@ -83,7 +84,5 @@ func statusText(code int) string {
 }
 
 func writeHealthJSON(w http.ResponseWriter, status int, data healthResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	writeJSON(w, status, data)
+	utils.WriteJSON(w, status, data)
 }

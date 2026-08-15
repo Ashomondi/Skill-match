@@ -8,6 +8,7 @@ import (
 
 	"skill-match/backend/middleware"
 	"skill-match/backend/services"
+	"skill-match/backend/utils"
 )
 
 // ChatHandler handles authenticated chat requests.
@@ -114,13 +115,7 @@ func (h *ChatHandler) Chat(
 			)
 
 		default:
-			writeJSON(
-				w,
-				http.StatusInternalServerError,
-				map[string]string{
-					"error": "failed to process chat request",
-				},
-			)
+			utils.WriteRequestError(w, r, err)
 		}
 
 		return

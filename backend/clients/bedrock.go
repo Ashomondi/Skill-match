@@ -150,3 +150,11 @@ func (c *BedrockClient) GenerateEmbedding(ctx context.Context, embedModelID, tex
 
 	return response.Embedding, nil
 }
+
+func BedrockErrorCode(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.ErrorCode()
+	}
+	return "unknown"
+}
