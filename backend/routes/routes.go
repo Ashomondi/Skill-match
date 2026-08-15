@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"skill-match/backend/handlers"
+	"skill-match/backend/middleware"
+	"skill-match/backend/utils"
 )
 
 type RegisterFunc func(mux *http.ServeMux)
@@ -37,4 +39,10 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
 	mux.HandleFunc("POST /api/chat", h.Chat)
+}
+
+func RegisterSavedJobs(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *utils.JWTManager) {
+	mux.Handle("POST /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.Save)))
+	mux.Handle("GET /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
+	mux.Handle("DELETE /api/saved-jobs/{job_id}", middleware.Auth(jwt)(http.HandlerFunc(h.Remove)))
 }
