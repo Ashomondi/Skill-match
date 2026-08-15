@@ -11,8 +11,9 @@ import { Tailor } from './pages/Tailor';
 import { useAuth } from './hooks/useAuth';
 import { Chat } from './pages/Chat';
 import { SavedJobs } from './pages/SavedJobs';
+import { Loader2 } from 'lucide-react';
 
-const RouteLoading = () => <div className="flex min-h-screen items-center justify-center bg-[#F6F0E6] text-sm text-[#8A7B6B]">Loading...</div>;
+const RouteLoading = () => <div className="flex min-h-screen items-center justify-center gap-2 bg-[var(--bg-primary)] text-sm text-[var(--text-muted)]"><Loader2 className="animate-spin" size={18} />Loading...</div>;
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => { const { isAuthenticated, loading } = useAuth(); if (loading) return <RouteLoading />; return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />; };
 const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => { const { isAuthenticated, loading } = useAuth(); if (loading) return <RouteLoading />; return isAuthenticated ? <Navigate to="/dashboard" replace /> : <>{children}</>; };
 
