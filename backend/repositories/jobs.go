@@ -75,6 +75,47 @@ func (r *JobRepository) GetByID(ctx context.Context, id string) (*Job, error) {
 	return r.scanOne(ctx, q, id)
 }
 
+// GetByIDs fetches jobs in the same order as ids. Missing jobs are ignored so
+// stale embeddings cannot prevent the remaining recommendations from being
+// returned.
+func (r *JobRepository) GetByIDs(ctx context.Context, ids []string) ([]*Job, error) {
+	if len(ids) == 0 {
+		return []*Job{}, nil
+	}
+
+	const q = `
+		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+		FROM jobs
+		WHERE id = ANY($1::UUID[])`
+
+	rows, err := r.db.Query(ctx, q, ids)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: get jobs by ids: %w", err)
+	}
+	defer rows.Close()
+
+	byID := make(map[string]*Job, len(ids))
+	for rows.Next() {
+		j := &Job{}
+		if err := rows.Scan(&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
+			&j.Description, &j.Salary, &j.Remote, &j.SourceURL, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("repositories: scan job: %w", err)
+		}
+		byID[j.ID] = j
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repositories: iterate jobs: %w", err)
+	}
+
+	jobs := make([]*Job, 0, len(byID))
+	for _, id := range ids {
+		if job, ok := byID[id]; ok {
+			jobs = append(jobs, job)
+		}
+	}
+	return jobs, nil
+}
+
 // List returns jobs ordered by most recently added, capped at limit.
 func (r *JobRepository) List(ctx context.Context, limit int) ([]*Job, error) {
 	if limit <= 0 || limit > 200 {

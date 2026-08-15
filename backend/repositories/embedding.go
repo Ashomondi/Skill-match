@@ -16,12 +16,13 @@ import (
 // embedding model requires a new migration and backfill; this constant
 // exists so callers get a clear error instead of a cryptic driver failure.
 
-
-/*Fixed a bug: embeddings.vector was VECTOR(1536), commented as Titan V2,
+/*
+Fixed a bug: embeddings.vector was VECTOR(1536), commented as Titan V2,
 but V2 actually maxes at 1024 dims (1536 was G1's number). Applied migration
 006 to correct it — table was empty, so no backfill needed. Verified via
 psql: column is now VECTOR(1024), index recreated. Let me know if you had
-a different reason for 1536 that I'm missing.*/
+a different reason for 1536 that I'm missing.
+*/
 const EmbeddingDim = 1024
 
 // Sentinel errors for embedding operations.
@@ -68,6 +69,13 @@ type Embedding struct {
 // distance from the query vector. Lower Distance means more similar.
 type SimilarEmbedding struct {
 	Embedding
+	Distance float64
+}
+
+// SimilarJob identifies a job whose embedding is close to a user context
+// vector. Lower Distance means the job is more relevant.
+type SimilarJob struct {
+	JobID    string
 	Distance float64
 }
 
@@ -163,6 +171,24 @@ func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []flo
 		return nil, fmt.Errorf("repositories: find similar embeddings: %w", err)
 	}
 	return out, nil
+}
+
+// FindSimilarJobs searches job embeddings without exposing embedding storage
+// details to the recommendation service.
+func (r *EmbeddingRepository) FindSimilarJobs(ctx context.Context, queryVector []float32, k int) ([]SimilarJob, error) {
+	matches, err := r.FindSimilar(ctx, queryVector, EmbeddingSourceJob, "", k)
+	if err != nil {
+		return nil, err
+	}
+
+	jobs := make([]SimilarJob, 0, len(matches))
+	for _, match := range matches {
+		jobs = append(jobs, SimilarJob{
+			JobID:    match.SourceID,
+			Distance: match.Distance,
+		})
+	}
+	return jobs, nil
 }
 
 // DeleteBySource removes the embedding for a specific source row, e.g.
