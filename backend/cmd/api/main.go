@@ -44,6 +44,16 @@ func main() {
 		)
 
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
+
+		jobRepo := repositories.NewJobRepository(pool)
+		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
+
+		ingested, skipped, err := jobService.IngestJobs(ctx)
+		if err != nil {
+			log.Printf("WARNING: job ingestion failed: %v", err)
+		} else {
+			log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
+		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
 	}
