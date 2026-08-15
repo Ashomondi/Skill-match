@@ -107,3 +107,11 @@ func ClassifyBedrockError(err error) string {
 	}
 	return "Something went wrong. Please try again."
 }
+
+func BedrockErrorCode(err error) string {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.ErrorCode()
+	}
+	return "unknown"
+}

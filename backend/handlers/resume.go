@@ -123,13 +123,7 @@ func (h *ResumeHandler) Upload(
 			)
 
 		default:
-			writeResumeJSON(
-				w,
-				http.StatusInternalServerError,
-				map[string]string{
-					"error": "failed to upload resume",
-				},
-			)
+			utils.WriteRequestError(w, r, err)
 		}
 
 		return
@@ -278,13 +272,7 @@ func (h *ResumeHandler) Update(
 			)
 
 		default:
-			writeResumeJSON(
-				w,
-				http.StatusInternalServerError,
-				map[string]string{
-					"error": "failed to update resume",
-				},
-			)
+			utils.WriteRequestError(w, r, err)
 		}
 
 		return
@@ -319,11 +307,8 @@ func (h *ResumeHandler) Delete(
 		return
 	}
 
-	// Get authenticated user from context.
-	userIDValue := r.Context().Value("user_id")
-
-	userID, ok := userIDValue.(string)
-	if !ok || strings.TrimSpace(userID) == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeResumeJSON(
 			w,
 			http.StatusUnauthorized,
@@ -378,13 +363,7 @@ func (h *ResumeHandler) Delete(
 			)
 
 		default:
-			writeResumeJSON(
-				w,
-				http.StatusInternalServerError,
-				map[string]string{
-					"error": "failed to delete resume",
-				},
-			)
+			utils.WriteRequestError(w, r, err)
 		}
 
 		return
@@ -406,6 +385,21 @@ func writeResumeJSON(
 	status int,
 	data interface{},
 ) {
+	if errorPayload, ok := data.(map[string]string); ok {
+		if message, exists := errorPayload["error"]; exists {
+			category := utils.CategoryValidation
+			switch status {
+			case http.StatusUnauthorized, http.StatusForbidden:
+				category = utils.CategoryAuth
+			case http.StatusNotFound:
+				category = utils.CategoryNotFound
+			case http.StatusInternalServerError:
+				category = utils.CategoryInternal
+			}
+			utils.WriteJSON(w, status, utils.ErrorResponse{Error: utils.ErrorBody{Message: message, Code: string(category)}})
+			return
+		}
+	}
 	w.Header().Set(
 		"Content-Type",
 		"application/json",

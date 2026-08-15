@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
 	"skill-match/backend/clients"
@@ -56,17 +55,11 @@ func (s *AIService) GenerateResponse(
 	}
 
 	if s.bedrock == nil {
-		return nil, fmt.Errorf(
-			"%w: Bedrock client is not configured",
-			ErrAIService,
-		)
+		return nil, utils.NewInternalError(ErrAIService, map[string]string{"operation": "generate_ai_response", "service": "bedrock"})
 	}
 
 	if s.conversations == nil {
-		return nil, fmt.Errorf(
-			"%w: conversation repository is not configured",
-			ErrAIService,
-		)
+		return nil, utils.NewInternalError(ErrAIService, map[string]string{"operation": "list_conversations", "resource": "conversation"})
 	}
 
 	// Retrieve recent conversation history.
@@ -76,11 +69,7 @@ func (s *AIService) GenerateResponse(
 		20,
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: failed to retrieve conversation history: %v",
-			ErrAIService,
-			err,
-		)
+		return nil, utils.NewDatabaseError(err, map[string]string{"operation": "list_conversations", "resource": "conversation", "user_id": input.UserID})
 	}
 
 	// Build the initial prompt using the user's message
@@ -93,10 +82,7 @@ func (s *AIService) GenerateResponse(
 	// Add resume context when a resume ID was supplied.
 	if strings.TrimSpace(input.ResumeID) != "" {
 		if s.resumes == nil {
-			return nil, fmt.Errorf(
-				"%w: resume repository is not configured",
-				ErrAIService,
-			)
+			return nil, utils.NewInternalError(ErrAIService, map[string]string{"operation": "get_resume", "resource": "resume"})
 		}
 
 		resume, err := s.resumes.GetByID(
@@ -105,24 +91,14 @@ func (s *AIService) GenerateResponse(
 		)
 		if err != nil {
 			if errors.Is(err, repositories.ErrResumeNotFound) {
-				return nil, fmt.Errorf(
-					"%w: resume not found",
-					ErrAIService,
-				)
+				return nil, utils.NewNotFoundError("Resume not found.")
 			}
 
-			return nil, fmt.Errorf(
-				"%w: failed to retrieve resume: %v",
-				ErrAIService,
-				err,
-			)
+			return nil, utils.NewDatabaseError(err, map[string]string{"operation": "get_resume", "resource": "resume", "resume_id": input.ResumeID})
 		}
 
 		if resume == nil {
-			return nil, fmt.Errorf(
-				"%w: resume not found",
-				ErrAIService,
-			)
+			return nil, utils.NewNotFoundError("Resume not found.")
 		}
 
 		// Prevent a user from using another user's resume
@@ -143,14 +119,9 @@ func (s *AIService) GenerateResponse(
 	// Send the complete context to Amazon Bedrock.
 	response, err := s.bedrock.GenerateResponse(ctx, prompt)
 	if err != nil {
-		log.Printf("[ai] bedrock request failed for user=%s: %v", input.UserID, err)
-		return nil, &utils.AppError{
-			Category:   utils.CategoryInternal,
-			UserMsg:    clients.ClassifyBedrockError(err),
-			StatusCode: 502,
-			Err:        err,
-			Context:    map[string]string{"user_id": input.UserID},
-		}
+		return nil, utils.NewUpstreamError(clients.ClassifyBedrockError(err), err, map[string]string{
+			"operation": "invoke_model", "service": "bedrock", "error_code": clients.BedrockErrorCode(err), "user_id": input.UserID,
+		})
 	}
 	response = strings.TrimSpace(response)
 

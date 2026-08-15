@@ -38,22 +38,21 @@ func main() {
 		defer pool.Close()
 
 		authService := services.NewAuthService(
-	repositories.NewUserRepository(pool),
-	jwtManager,
-)
+			repositories.NewUserRepository(pool),
+			jwtManager,
+		)
 
-routes.RegisterAuth(
-	mux,
-	handlers.NewAuthHandler(authService),
-)
-		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
+		routes.RegisterAuth(
+			mux,
+			handlers.NewAuthHandler(authService),
+		)
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
 	}
 
 	handler := middleware.Chain(mux,
-		middleware.Recovery,
 		middleware.Logging,
+		middleware.Recovery,
 		middleware.CORS,
 	)
 

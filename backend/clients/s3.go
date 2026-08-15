@@ -3,8 +3,9 @@ package clients
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
-     "io"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -15,7 +16,6 @@ type S3Client struct {
 	presignClient *s3.PresignClient
 	bucket        string
 }
-
 
 func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) {
 	if bucket == "" {
@@ -36,11 +36,9 @@ func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) 
 	}, nil
 }
 
-
 func (c *S3Client) Key(userID, fileID string) string {
 	return fmt.Sprintf("resumes/%s/%s", userID, fileID)
 }
-
 
 func (c *S3Client) PresignUpload(ctx context.Context, key, contentType string, expiry time.Duration) (string, error) {
 	request, err := c.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
@@ -49,11 +47,10 @@ func (c *S3Client) PresignUpload(ctx context.Context, key, contentType string, e
 		ContentType: aws.String(contentType),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("presigning upload for key %s: %w", key, err)
+		return "", fmt.Errorf("presigning upload: %w", err)
 	}
 	return request.URL, nil
 }
-
 
 func (c *S3Client) PresignDownload(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	request, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
@@ -61,7 +58,7 @@ func (c *S3Client) PresignDownload(ctx context.Context, key string, expiry time.
 		Key:    aws.String(key),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("presigning download for key %s: %w", key, err)
+		return "", fmt.Errorf("presigning download: %w", err)
 	}
 	return request.URL, nil
 }
@@ -72,11 +69,10 @@ func (c *S3Client) Delete(ctx context.Context, key string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return fmt.Errorf("deleting key %s: %w", key, err)
+		return fmt.Errorf("deleting object: %w", err)
 	}
 	return nil
 }
-
 
 func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error) {
 	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
@@ -84,13 +80,13 @@ func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("downloading key %s: %w", key, err)
+		return nil, fmt.Errorf("downloading object: %w", err)
 	}
 	defer result.Body.Close()
 
 	data, err := io.ReadAll(result.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading downloaded content for key %s: %w", key, err)
+		return nil, fmt.Errorf("reading downloaded content: %w", err)
 	}
 	return data, nil
 }

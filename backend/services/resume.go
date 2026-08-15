@@ -124,11 +124,9 @@ func (s *ResumeService) Upload(
 		contentType,
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: storage upload failed: %v",
-			ErrResumeUploadFailed,
-			err,
-		)
+		return nil, utils.NewStorageError(err, map[string]string{
+			"operation": "upload_resume", "service": "s3", "user_id": input.UserID,
+		})
 	}
 
 	now := time.Now().UTC()
@@ -149,11 +147,9 @@ func (s *ResumeService) Upload(
 	if err := s.repository.Create(ctx, resume); err != nil {
 		_ = s.storage.Delete(ctx, s3Key)
 
-		return nil, fmt.Errorf(
-			"%w: database operation failed: %v",
-			ErrResumeUploadFailed,
-			err,
-		)
+		return nil, utils.NewDatabaseError(err, map[string]string{
+			"operation": "create_resume", "resource": "resume", "user_id": input.UserID,
+		})
 	}
 
 	return resume, nil
@@ -177,11 +173,12 @@ func (s *ResumeService) Update(
 		input.ResumeID,
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: %v",
-			ErrResumeNotFound,
-			err,
-		)
+		if errors.Is(err, ErrResumeNotFound) {
+			return nil, ErrResumeNotFound
+		}
+		return nil, utils.NewDatabaseError(err, map[string]string{
+			"operation": "get_resume", "resource": "resume", "resume_id": input.ResumeID,
+		})
 	}
 
 	if existing == nil {
@@ -245,11 +242,9 @@ func (s *ResumeService) Update(
 		contentType,
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: storage upload failed: %v",
-			ErrResumeUpdateFailed,
-			err,
-		)
+		return nil, utils.NewStorageError(err, map[string]string{
+			"operation": "replace_resume", "service": "s3", "resume_id": input.ResumeID,
+		})
 	}
 
 	updated := &models.Resume{
@@ -268,11 +263,9 @@ func (s *ResumeService) Update(
 	if err := s.repository.Update(ctx, updated); err != nil {
 		_ = s.storage.Delete(ctx, newS3Key)
 
-		return nil, fmt.Errorf(
-			"%w: database operation failed: %v",
-			ErrResumeUpdateFailed,
-			err,
-		)
+		return nil, utils.NewDatabaseError(err, map[string]string{
+			"operation": "update_resume", "resource": "resume", "resume_id": input.ResumeID,
+		})
 	}
 
 	return updated, nil
@@ -293,11 +286,9 @@ func (s *ResumeService) Delete(
 			return ErrResumeNotFound
 		}
 
-		return fmt.Errorf(
-			"%w: failed to find resume: %v",
-			ErrResumeDeleteFailed,
-			err,
-		)
+		return utils.NewDatabaseError(err, map[string]string{
+			"operation": "get_resume", "resource": "resume", "resume_id": resumeID,
+		})
 	}
 
 	if resume == nil {
@@ -312,20 +303,16 @@ func (s *ResumeService) Delete(
 
 	if s3Key != "" {
 		if err := s.storage.Delete(ctx, s3Key); err != nil {
-			return fmt.Errorf(
-				"%w: failed to delete resume file: %v",
-				ErrResumeDeleteFailed,
-				err,
-			)
+			return utils.NewStorageError(err, map[string]string{
+				"operation": "delete_resume", "service": "s3", "resume_id": resumeID,
+			})
 		}
 	}
 
 	if err := s.repository.Delete(ctx, resumeID); err != nil {
-		return fmt.Errorf(
-			"%w: failed to delete resume metadata: %v",
-			ErrResumeDeleteFailed,
-			err,
-		)
+		return utils.NewDatabaseError(err, map[string]string{
+			"operation": "delete_resume", "resource": "resume", "resume_id": resumeID,
+		})
 	}
 
 	return nil
