@@ -12,12 +12,28 @@ import (
 )
 
 type HealthHandler struct {
-	db       *pgxpool.Pool
-	s3Client *clients.S3Client
+	db       databasePinger
+	s3Client storagePinger
+}
+
+type databasePinger interface {
+	Ping(context.Context) error
+}
+
+type storagePinger interface {
+	Ping(context.Context) error
 }
 
 func NewHealthHandler(db *pgxpool.Pool, s3Client *clients.S3Client) *HealthHandler {
-	return &HealthHandler{db: db, s3Client: s3Client}
+	var database databasePinger
+	if db != nil {
+		database = db
+	}
+	var storage storagePinger
+	if s3Client != nil {
+		storage = s3Client
+	}
+	return &HealthHandler{db: database, s3Client: storage}
 }
 
 type dependencyStatus struct {
@@ -44,7 +60,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	overallStatus := http.StatusOK
 	for _, dep := range deps {
-		if dep.Status != "ok" && dep.Status != "not configured" {
+		if dep.Status != "ok" {
 			overallStatus = http.StatusServiceUnavailable
 			break
 		}
@@ -56,7 +72,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func checkDatabase(ctx context.Context, db *pgxpool.Pool) dependencyStatus {
+func checkDatabase(ctx context.Context, db databasePinger) dependencyStatus {
 	if db == nil {
 		return dependencyStatus{Status: "not configured"}
 	}
@@ -66,7 +82,7 @@ func checkDatabase(ctx context.Context, db *pgxpool.Pool) dependencyStatus {
 	return dependencyStatus{Status: "ok"}
 }
 
-func checkS3(ctx context.Context, s3Client *clients.S3Client) dependencyStatus {
+func checkS3(ctx context.Context, s3Client storagePinger) dependencyStatus {
 	if s3Client == nil {
 		return dependencyStatus{Status: "not configured"}
 	}
