@@ -19,7 +19,7 @@ export const Navbar: React.FC = () => {
         </Link>
         {isAuthenticated && (
           <nav className="hidden gap-5 text-sm md:flex">
-            {[['/dashboard','Dashboard'],['/chat','Chat'],['/cv-tailor','CV Tailor'],['/discover','Discover'],['/applications','Applications'],['/history','History']].map(([to,label]) => <NavLink key={to} to={to} className={({isActive}) => `border-b-2 pb-1 ${isActive ? 'border-[var(--accent-gold)] text-[var(--text-heading)]' : 'border-transparent text-[var(--text-body)] hover:text-[var(--text-heading)]'}`}>{label}</NavLink>)}
+            {[['/dashboard','Dashboard'],['/chat','Chat'],['/cv-tailor','CV Tailor'],['/discover','Discover'],['/saved-jobs','Saved Jobs'],['/applications','Applications']].map(([to,label]) => <NavLink key={to} to={to} className={({isActive}) => `border-b-2 pb-1 ${isActive ? 'border-[var(--accent-gold)] text-[var(--text-heading)]' : 'border-transparent text-[var(--text-body)] hover:text-[var(--text-heading)]'}`}>{label}</NavLink>)}
           </nav>
         )}
       </div>

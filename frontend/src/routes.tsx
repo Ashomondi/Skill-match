@@ -10,6 +10,7 @@ import { JobDetail, Jobs } from './pages/Jobs';
 import { Tailor } from './pages/Tailor';
 import { useAuth } from './hooks/useAuth';
 import { Chat } from './pages/Chat';
+import { SavedJobs } from './pages/SavedJobs';
 
 const RouteLoading = () => <div className="flex min-h-screen items-center justify-center bg-[#F6F0E6] text-sm text-[#8A7B6B]">Loading...</div>;
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => { const { isAuthenticated, loading } = useAuth(); if (loading) return <RouteLoading />; return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />; };
@@ -27,6 +28,7 @@ export const AppRoutes: React.FC = () => <Routes>
   <Route path="/discover/:jobId" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
   <Route path="/discover/:jobId/tailor" element={<ProtectedRoute><Tailor /></ProtectedRoute>} />
   <Route path="/applications" element={<ProtectedRoute><Applications /></ProtectedRoute>} />
+  <Route path="/saved-jobs" element={<ProtectedRoute><SavedJobs /></ProtectedRoute>} />
   <Route path="/" element={<Navigate to="/dashboard" replace />} />
   <Route path="*" element={<Navigate to="/dashboard" replace />} />
 </Routes>;
