@@ -1,9 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
 import { useChat } from '../hooks/useChat';
+import { Conversation } from '../services/chat';
 
-export const ChatBox: React.FC = () => {
-  const { messages, loading, error, sendMessage } = useChat();
+interface ChatBoxProps {
+  conversation: Conversation;
+  onChange: (conversation: Conversation) => void;
+}
+
+export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange }) => {
+  const { messages, loading, error, sendMessage } = useChat(conversation, onChange);
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -20,7 +26,7 @@ export const ChatBox: React.FC = () => {
   return <section className="flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] shadow-sm">
     <div className="flex items-center gap-3 border-b border-[var(--border-hairline)] px-5 py-4">
       <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-card)] text-[var(--text-heading)]"><Sparkles size={17} /></span>
-      <div><h2 className="font-semibold text-[var(--text-heading)]">SkillMatch</h2><p className="text-xs text-[var(--text-muted)]">Career assistant</p></div>
+      <div className="min-w-0"><h2 className="truncate font-semibold text-[var(--text-heading)]">{conversation.title}</h2><p className="text-xs text-[var(--text-muted)]">Career assistant</p></div>
     </div>
     <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
       {messages.length === 0 && <div className="mx-auto mt-12 max-w-sm text-center"><Sparkles className="mx-auto text-[var(--accent-gold)]" size={24} /><p className="mt-3 font-serif text-xl font-semibold text-[var(--text-heading)]">What would you like to work on?</p><p className="mt-2 text-sm text-[var(--text-muted)]">Try asking for role recommendations or feedback on your CV.</p></div>}
