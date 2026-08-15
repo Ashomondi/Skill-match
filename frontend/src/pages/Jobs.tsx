@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
 import { JobCard } from '../components/JobCard';
 import { MatchRing } from '../components/MatchRing';
+import { RecommendationsSection } from '../components/jobs/RecommendationsSection';
 import { useJobs } from '../hooks/useJobs';
 
 const filterClassName = 'h-11 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3 text-sm text-[var(--text-heading)] outline-none focus:border-[var(--accent-gold)]';
@@ -24,7 +25,13 @@ export const Jobs: React.FC = () => {
           <p className="mt-2 text-sm leading-6 text-[var(--text-muted)]">Search available roles and explore opportunities aligned with your experience.</p>
         </header>
 
-        <div className="mt-7 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_180px_180px_180px]">
+        <RecommendationsSection />
+
+        <div className="mt-10 border-t border-[var(--border-hairline)] pt-8">
+          <h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">Explore all jobs</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Search beyond your personalized recommendations.</p>
+        </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_180px_180px_180px]">
           <label className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3 focus-within:border-[var(--accent-gold)]">
             <Search className="shrink-0 text-[var(--text-muted)]" size={18} />
             <input value={query} onChange={(event) => setQuery(event.target.value)} className="h-11 min-w-0 flex-1 bg-transparent text-sm text-[var(--text-heading)] outline-none" placeholder="Search title, company, or keyword" aria-label="Search jobs" />
