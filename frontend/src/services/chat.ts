@@ -1,0 +1,4 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+export interface ChatMessage { id: string; role: 'user' | 'assistant'; content: string; }
+const token = () => localStorage.getItem('token');
+export const chatService = { async send(message: string, history: ChatMessage[]): Promise<string> { const response = await fetch(`${API_BASE_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token() ? { Authorization: `Bearer ${token()}` } : {}) }, body: JSON.stringify({ message, history: history.map(({ role, content }) => ({ role, content })) }) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || data.message || 'The assistant could not respond.'); return data.reply || data.response || data.message || data.content || 'I could not generate a response.'; } };
