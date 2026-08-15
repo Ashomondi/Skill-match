@@ -1,71 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Briefcase, Bookmark, CalendarCheck, RefreshCw, Trophy } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { Navbar } from '../components/Navbar';
+import { AppShell } from '../components/AppShell';
+import { DashboardData, dashboardService } from '../services/dashboard';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = async () => { setLoading(true); setError(null); try { setData(await dashboardService.getDashboard()); } catch (err) { setError(err instanceof Error ? err.message : 'Unable to load your dashboard.'); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
 
   return (
-    <div className="min-h-screen bg-[#EAE5DC] font-mono text-[#2C2A29] flex flex-col">
-      <Navbar />
-
-      <main className="flex-1 max-w-5xl w-full mx-auto p-6">
-        <div className="mb-8">
-          <div className="text-xs text-[#6B655D] mb-1">Memory: healthy</div>
-          <h1 className="text-2xl font-bold">Welcome back, {user?.fullName || 'Professional'}.</h1>
-          <p className="text-sm text-[#6B655D] mt-1">
-            Your career, with a memory that never forgets what worked.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="border border-[#C2BBB0] bg-[#F5F1E9] p-5 rounded">
-            <h3 className="text-xs text-[#6B655D] uppercase tracking-wider mb-2">Active Tailored CVs</h3>
-            <div className="text-3xl font-bold">12</div>
-          </div>
-          <div className="border border-[#C2BBB0] bg-[#F5F1E9] p-5 rounded">
-            <h3 className="text-xs text-[#6B655D] uppercase tracking-wider mb-2">Applications Tracked</h3>
-            <div className="text-3xl font-bold">6</div>
-          </div>
-          <div className="border border-[#C2BBB0] bg-[#F5F1E9] p-5 rounded">
-            <h3 className="text-xs text-[#6B655D] uppercase tracking-wider mb-2">Match Efficiency</h3>
-            <p className="text-sm mt-1">Gets smarter with every application.</p>
-          </div>
-        </div>
-
-        <div className="border border-[#C2BBB0] bg-[#F5F1E9] p-6 rounded">
-          <h2 className="text-lg font-bold mb-4 border-b border-[#C2BBB0] pb-2">Quick Actions</h2>
-          <div className="flex flex-wrap gap-4">
-            <a
-              href="/cv-tailor"
-              className="bg-[#E3DCD1] border border-[#8C8275] px-4 py-2 rounded text-sm hover:bg-[#D8D0C3]"
-            >
-              Upload & Tailor New CV
-            </a>
-            <a
-              href="/discover"
-              className="bg-[#E3DCD1] border border-[#8C8275] px-4 py-2 rounded text-sm hover:bg-[#D8D0C3]"
-            >
-              Discover Matching Roles
-            </a>
-            <a
-              href="/applications"
-              className="bg-[#E3DCD1] border border-[#8C8275] px-4 py-2 rounded text-sm hover:bg-[#D8D0C3]"
-            >
-              View Application Status
-            </a>
-          </div>
-        </div>
-      </main>
-
-      <footer className="border-t border-[#C2BBB0] py-4 px-6 text-xs text-[#6B655D] flex justify-between">
-        <div>2026 Skill-match. Professional Tailoring.</div>
-        <div className="flex gap-4">
-          <a href="#" className="hover:underline">Privacy</a>
-          <a href="#" className="hover:underline">Terms</a>
-          <a href="#" className="hover:underline">Help</a>
-        </div>
-      </footer>
-    </div>
+    <AppShell><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent-gold)]">Job search overview</p><h1 className="mt-2 font-serif text-4xl font-bold text-[var(--text-heading)]">Welcome back, {user?.fullName || 'Professional'}.</h1><p className="mt-2 text-sm text-[var(--text-muted)]">Your progress, applications, and next opportunities in one place.</p></div><button onClick={() => void load()} disabled={loading} className="inline-flex items-center gap-2 rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm text-[var(--text-button-fill)] disabled:opacity-50"><RefreshCw className={loading ? 'animate-spin' : ''} size={15}/>Refresh</button></div>
+      {error && <div className="mt-6 rounded-lg border border-[var(--status-rejected)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--status-rejected)]">{error}</div>}
+      <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">{[
+        ['Saved jobs', data?.savedJobs, Bookmark],['Applications', data?.totalApplications, Briefcase],['Interviews', data?.byStatus.interview, CalendarCheck],['Offers', data?.byStatus.offer, Trophy]
+      ].map(([label,value,Icon]) => <section key={label as string} className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-4 sm:p-5"><div className="flex items-center justify-between"><p className="text-xs uppercase tracking-wider text-[var(--text-muted)]">{label as string}</p>{React.createElement(Icon as React.ElementType,{size:18,className:'text-[var(--accent-gold)]'})}</div><p className="mt-4 font-serif text-3xl font-bold text-[var(--text-heading)]">{loading ? '—' : value as number ?? 0}</p></section>)}</div>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.4fr]"><section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-5"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">Applications by status</h2><div className="mt-5 space-y-4">{Object.entries(data?.byStatus || {saved:0,applied:0,screening:0,interview:0,offer:0,rejected:0,withdrawn:0}).map(([status,count]) => { const max=Math.max(data?.totalApplications || 0,1); return <div key={status}><div className="mb-1 flex justify-between text-sm"><span className="capitalize">{status}</span><b className="text-[var(--text-heading)]">{loading?'—':count}</b></div><div className="h-2 overflow-hidden rounded-full bg-[var(--bg-card)]"><div className="h-full rounded-full bg-[var(--accent-gold)]" style={{width:loading?'0%':`${(count/max)*100}%`}}/></div></div>})}</div></section>
+        <section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-5"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">Recent applications</h2>{!loading && !data?.recentApplications.length ? <div className="grid min-h-56 place-items-center text-center"><div><Briefcase className="mx-auto text-[var(--accent-gold)]"/><p className="mt-3 font-semibold text-[var(--text-heading)]">No applications yet</p><p className="mt-1 text-sm text-[var(--text-muted)]">Applications you track will appear here.</p></div></div> : <div className="mt-4 divide-y divide-[var(--border-hairline)]">{loading ? [1,2,3].map(i=><div key={i} className="h-16 animate-pulse py-3"><div className="h-full rounded bg-[var(--bg-card)]"/></div>) : data?.recentApplications.map(item=><div key={item.id} className="flex items-center gap-3 py-4"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--bg-card)] font-semibold text-[var(--text-heading)]">{item.company[0]}</span><div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--text-heading)]">{item.role}</p><p className="truncate text-xs text-[var(--text-muted)]">{item.company}</p></div><div className="text-right"><span className="rounded-full bg-[var(--bg-card)] px-3 py-1 text-xs capitalize text-[var(--text-heading)]">{item.status}</span><p className="mt-1 text-xs text-[var(--text-muted)]">{item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}</p></div></div>)}</div>}</section></div>
+    </AppShell>
   );
 };

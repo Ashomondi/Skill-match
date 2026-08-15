@@ -1,4 +1,5 @@
 package handlers
+<<<<<<< HEAD
 
 import (
 	"encoding/json"
@@ -415,3 +416,5 @@ func writeResumeJSON(
 
 	_ = json.NewEncoder(w).Encode(data)
 }
+=======
+>>>>>>> main
