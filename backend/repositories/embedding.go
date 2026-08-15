@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -11,8 +12,8 @@ import (
 	"github.com/pgvector/pgvector-go"
 )
 
-// EmbeddingDim is the fixed vector dimension enforced by the VECTOR(1536)
-// column in migrations/003_memory.sql (Titan Embeddings V2). Changing the
+// EmbeddingDim is the fixed vector dimension enforced by the VECTOR(1024)
+// column after migrations/003 and 006 (Titan Embeddings V2). Changing the
 // embedding model requires a new migration and backfill; this constant
 // exists so callers get a clear error instead of a cryptic driver failure.
 
@@ -144,16 +145,25 @@ func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []flo
 		k = 10
 	}
 
-	q := fmt.Sprintf(`
-		SELECT %s, vector <=> $1 AS distance
-		FROM embeddings
-		WHERE ($2 = '' OR source_type = $2)
-		  AND ($3 = '' OR user_id = $3)
-		ORDER BY vector <=> $1
-		LIMIT $4`, embeddingColumns)
-
 	qv := pgvector.NewVector(queryVector)
-	rows, err := r.db.Query(ctx, q, qv, string(sourceType), userID, k)
+	args := []any{qv}
+	filters := make([]string, 0, 2)
+	if sourceType != "" {
+		args = append(args, string(sourceType))
+		filters = append(filters, fmt.Sprintf("source_type = $%d", len(args)))
+	}
+	if userID != "" {
+		args = append(args, userID)
+		filters = append(filters, fmt.Sprintf("user_id = $%d", len(args)))
+	}
+	q := fmt.Sprintf("SELECT %s, vector <=> $1 AS distance FROM embeddings", embeddingColumns)
+	if len(filters) > 0 {
+		q += " WHERE " + strings.Join(filters, " AND ")
+	}
+	args = append(args, k)
+	q += fmt.Sprintf(" ORDER BY vector <=> $1 LIMIT $%d", len(args))
+
+	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("repositories: find similar embeddings: %w", err)
 	}

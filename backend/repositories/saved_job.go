@@ -42,8 +42,8 @@ func (r *SavedJobRepository) ListByUserID(ctx context.Context, userID string) ([
 	if strings.TrimSpace(userID) == "" {
 		return nil, ErrInvalidSavedJobInput
 	}
-	const q = `SELECT s.user_id, s.job_id, s.saved_at, j.id, j.external_id, j.title, j.company, j.location, j.description, j.salary, j.remote, j.source_url, j.created_at, j.updated_at FROM saved_jobs s JOIN jobs j ON j.id = s.job_id WHERE s.user_id = $1 ORDER BY s.saved_at DESC`
-	rows, err := r.db.Query(ctx, q, userID)
+	const q = `SELECT s.user_id, s.job_id, s.saved_at, j.id, j.external_id, j.title, j.company, j.location, j.description, j.salary, j.remote, j.source_url, j.created_at, j.updated_at FROM saved_jobs s JOIN jobs j ON j.id = s.job_id WHERE s.user_id = $1 ORDER BY s.saved_at DESC LIMIT $2`
+	rows, err := r.db.Query(ctx, q, userID, 100)
 	if err != nil {
 		return nil, fmt.Errorf("repositories: list saved jobs: %w", err)
 	}

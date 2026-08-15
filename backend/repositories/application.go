@@ -86,10 +86,13 @@ func (r *ApplicationRepository) UpdateStatus(ctx context.Context, userID, id str
 	return a, nil
 }
 func (r *ApplicationRepository) History(ctx context.Context, userID, id string) ([]models.ApplicationStatusChange, error) {
-	if _, err := r.GetByID(ctx, userID, id); err != nil {
-		return nil, err
-	}
-	rows, err := r.db.Query(ctx, `SELECT status,changed_at FROM application_status_history WHERE application_id=$1 ORDER BY changed_at ASC`, id)
+	const q = `
+		SELECT h.status, h.changed_at
+		FROM application_status_history h
+		JOIN applications a ON a.id = h.application_id
+		WHERE h.application_id = $1 AND a.user_id = $2
+		ORDER BY h.changed_at ASC`
+	rows, err := r.db.Query(ctx, q, id, userID)
 	if err != nil {
 		return nil, fmt.Errorf("repositories: application history: %w", err)
 	}
