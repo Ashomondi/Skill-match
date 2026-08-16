@@ -11,13 +11,13 @@ import (
 )
 
 type fakeApplicationRepo struct {
-	byID        map[string]*models.Application
-	byUser      map[string][]*models.Application
-	createErr   error
-	getErr      error
-	updateErr   error
-	deleteErr   error
-	seq         int
+	byID          map[string]*models.Application
+	byUser        map[string][]*models.Application
+	createErr     error
+	getErr        error
+	updateErr     error
+	deleteErr     error
+	seq           int
 	updatedStatus map[string]models.ApplicationStatus
 }
 
