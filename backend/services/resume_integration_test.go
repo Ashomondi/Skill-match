@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -61,7 +62,7 @@ func TestResumeStorageIntegration(t *testing.T) {
 
 	userRepo := repositories.NewUserRepository(pool)
 	user, err := userRepo.Create(ctx, &models.User{
-		Email:    "integration-test@skillmatch.local",
+		Email:    fmt.Sprintf("integration-%d@skillmatch.local", time.Now().UnixNano()),
 		Password: "integration-placeholder-hash",
 		FullName: "Integration Tester",
 	})

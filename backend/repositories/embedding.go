@@ -90,7 +90,7 @@ func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []flo
 		SELECT %s, vector <=> $1 AS distance
 		FROM embeddings
 		WHERE ($2 = '' OR source_type = $2)
-		  AND ($3 = '' OR user_id = $3)
+		  AND ($3 = '' OR user_id::STRING = $3)
 		ORDER BY vector <=> $1
 		LIMIT $4`, embeddingColumns)
 
