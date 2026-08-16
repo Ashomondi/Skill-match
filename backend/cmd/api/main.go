@@ -49,6 +49,25 @@ func main() {
 		userRepo := repositories.NewUserRepository(pool)
 		authService := services.NewAuthService(userRepo, jwtManager)
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
+
+		if cfg.S3Bucket != "" {
+			s3Client, err := clients.NewS3Client(ctx, clients.S3Config{
+				Region:         cfg.AWSRegion,
+				Bucket:         cfg.S3Bucket,
+				Endpoint:       cfg.S3Endpoint,
+				AccessKey:      cfg.S3AccessKey,
+				SecretKey:      cfg.S3SecretKey,
+				ForcePathStyle: cfg.S3ForcePathStyle,
+			})
+			if err != nil {
+				log.Fatalf("init s3 client: %v", err)
+			}
+
+			resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), s3Client)
+			routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), middleware.Auth(jwtManager))
+		} else {
+			log.Println("warning: S3_BUCKET_NAME not set — resume endpoints disabled")
+		}
 	}
 
 	handler := middleware.Chain(mux,

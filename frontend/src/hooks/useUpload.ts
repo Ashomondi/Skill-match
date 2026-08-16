@@ -1,20 +1,20 @@
 // frontend/src/hooks/useUpload.ts
 
 import { useState, useCallback } from 'react';
-import { resumeService, UploadResponse } from '../services/resume';
+import { resumeService, Resume } from '../services/resume';
 
 const ALLOWED_TYPES = [
-  'application/pdf', 
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
-  'text/plain'
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
 ];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB, matches the backend limit
 
 export function useUpload() {
   const [progress, setProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [successData, setSuccessData] = useState<UploadResponse | null>(null);
+  const [successData, setSuccessData] = useState<Resume | null>(null);
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -26,7 +26,7 @@ export function useUpload() {
     return null;
   };
 
-  const upload = useCallback(async (file: File) => {
+  const upload = useCallback(async (file: File, replaceId?: string): Promise<Resume | null> => {
     setError(null);
     setSuccessData(null);
     setProgress(0);
@@ -34,19 +34,19 @@ export function useUpload() {
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
-      return;
+      return null;
     }
 
     setIsUploading(true);
 
     try {
-      const response = await resumeService.uploadCV(file, (prog) => {
-        setProgress(prog);
-      });
+      const response = await resumeService.upload(file, setProgress, replaceId);
       setSuccessData(response);
       setProgress(100);
+      return response;
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during upload.');
+      return null;
     } finally {
       setIsUploading(false);
     }

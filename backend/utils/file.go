@@ -14,6 +14,7 @@ var allowedResumeExtensions = map[string]string{
 	".pdf":  "application/pdf",
 	".doc":  "application/msword",
 	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".txt":  "text/plain",
 }
 
 func ValidateResumeFile(filename, contentType string, size int64) error {
@@ -27,7 +28,7 @@ func ValidateResumeFile(filename, contentType string, size int64) error {
 	ext := strings.ToLower(filepath.Ext(filename))
 	expectedType, ok := allowedResumeExtensions[ext]
 	if !ok {
-		return fmt.Errorf("unsupported file type %q: only .pdf, .doc, .docx are allowed", ext)
+		return fmt.Errorf("unsupported file type %q: only .pdf, .doc, .docx, .txt are allowed", ext)
 	}
 
 	if contentType != expectedType {

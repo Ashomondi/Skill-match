@@ -8,6 +8,7 @@ import (
 
 	"skill-match/backend/clients"
 	"skill-match/backend/handlers"
+	"skill-match/backend/middleware"
 )
 
 type RegisterFunc func(mux *http.ServeMux)
@@ -46,4 +47,12 @@ func RegisterHealth(mux *http.ServeMux, pool *pgxpool.Pool) {
 func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
+}
+
+// RegisterResumes exposes the resume endpoints, all protected by auth.
+func RegisterResumes(mux *http.ServeMux, h *handlers.ResumeHandler, auth middleware.Middleware) {
+	mux.Handle("GET /api/resumes", auth(http.HandlerFunc(h.List)))
+	mux.Handle("POST /api/resumes", auth(http.HandlerFunc(h.Create)))
+	mux.Handle("GET /api/resumes/{id}", auth(http.HandlerFunc(h.Get)))
+	mux.Handle("DELETE /api/resumes/{id}", auth(http.HandlerFunc(h.Delete)))
 }
