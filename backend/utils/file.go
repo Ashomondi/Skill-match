@@ -8,15 +8,13 @@ import (
 	"strings"
 )
 
-
-const MaxResumeFileSize = 5 * 1024 * 1024 
+const MaxResumeFileSize = 5 * 1024 * 1024
 
 var allowedResumeExtensions = map[string]string{
 	".pdf":  "application/pdf",
 	".doc":  "application/msword",
 	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
-
 
 func ValidateResumeFile(filename, contentType string, size int64) error {
 	if size <= 0 {
@@ -38,7 +36,6 @@ func ValidateResumeFile(filename, contentType string, size int64) error {
 
 	return nil
 }
-
 
 func GenerateFileID(originalFilename string) (string, error) {
 	buf := make([]byte, 16)

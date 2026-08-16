@@ -1,10 +1,13 @@
 package config
 
+import "time"
+
 type Config struct {
 	Port string
 
 	DatabaseURL string
 	JWTSecret   string
+	JWTExpiry   time.Duration
 
 	AWSRegion string
 	S3Bucket  string
@@ -17,7 +20,8 @@ func Load() *Config {
 		Port: getEnv("PORT", "8080"),
 
 		DatabaseURL: getEnv("DATABASE_URL", ""),
-		JWTSecret:   getEnv("JWT_SECRET", ""),
+		JWTSecret:   jwtSecret(),
+		JWTExpiry:   jwtExpiry(),
 
 		AWSRegion: awsRegion(),
 		S3Bucket:  s3Bucket(),

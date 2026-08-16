@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"skill-match/backend/models"
 	"skill-match/backend/services"
 )
 
@@ -15,12 +16,13 @@ type AuthHandler struct {
 type AuthRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	FullName string `json:"fullName"`
 }
 
 type AuthResponse struct {
-	Message string `json:"message"`
-	User    interface{} `json:"user,omitempty"`
-	Token   string      `json:"token,omitempty"`
+	Message string       `json:"message"`
+	User    *models.User `json:"user,omitempty"`
+	Token   string       `json:"token,omitempty"`
 }
 
 // NewAuthHandler creates a new authentication handler.
@@ -32,13 +34,6 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 
 // Register handles POST /api/auth/register.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		})
-		return
-	}
-
 	var request AuthRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -48,10 +43,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.authService.Register(
+	user, token, err := h.authService.Register(
 		r.Context(),
 		request.Email,
 		request.Password,
+		request.FullName,
 	)
 
 	if err != nil {
@@ -83,18 +79,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, AuthResponse{
 		Message: "account created successfully",
 		User:    user,
+		Token:   token,
 	})
 }
 
 // Login handles POST /api/auth/login.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		})
-		return
-	}
-
 	var request AuthRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -104,7 +94,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.authService.Login(
+	user, token, err := h.authService.Login(
 		r.Context(),
 		request.Email,
 		request.Password,
@@ -126,6 +116,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, AuthResponse{
 		Message: "login successful",
+		User:    user,
 		Token:   token,
 	})
 }

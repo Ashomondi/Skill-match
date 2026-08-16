@@ -16,7 +16,6 @@ type S3Client struct {
 	bucket        string
 }
 
-
 func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) {
 	if bucket == "" {
 		return nil, fmt.Errorf("s3 bucket name is required but was empty")
@@ -36,11 +35,9 @@ func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) 
 	}, nil
 }
 
-
 func (c *S3Client) Key(userID, fileID string) string {
 	return fmt.Sprintf("resumes/%s/%s", userID, fileID)
 }
-
 
 func (c *S3Client) PresignUpload(ctx context.Context, key, contentType string, expiry time.Duration) (string, error) {
 	request, err := c.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{
@@ -53,7 +50,6 @@ func (c *S3Client) PresignUpload(ctx context.Context, key, contentType string, e
 	}
 	return request.URL, nil
 }
-
 
 func (c *S3Client) PresignDownload(ctx context.Context, key string, expiry time.Duration) (string, error) {
 	request, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{

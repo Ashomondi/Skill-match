@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"skill-match/backend/models"
 )
 
 // Sentinel errors for conversation operations.
@@ -16,42 +17,9 @@ var (
 	ErrInvalidConversationInput = errors.New("repositories: invalid conversation input")
 )
 
-// ConversationRole mirrors the CHECK constraint in
-// migrations/003_memory.sql and the role field Bedrock expects on chat
-// messages.
-type ConversationRole string
-
-const (
-	ConversationRoleUser      ConversationRole = "user"
-	ConversationRoleAssistant ConversationRole = "assistant"
-	ConversationRoleSystem    ConversationRole = "system"
-)
-
-func (r ConversationRole) valid() bool {
-	switch r {
-	case ConversationRoleUser, ConversationRoleAssistant, ConversationRoleSystem:
-		return true
-	default:
-		return false
-	}
-}
-
-// Conversation is a single turn in a user's chat history.
-//
-// NOTE: models.Conversation (not yet assigned an owner as of the current
-// MILESTONES.md — flagged as an ownership gap) should become the
-// canonical type; this local definition should collapse into it once that
-// file exists, same as User and Resume.
-type Conversation struct {
-	ID        string
-	UserID    string
-	Role      ConversationRole
-	Content   string
-	CreatedAt time.Time
-}
-
 // ConversationRepository provides persistence operations for chat history
-// backed by CockroachDB.
+// backed by CockroachDB. It operates on the canonical models.Conversation
+// type and models.ConversationRole.
 type ConversationRepository struct {
 	db *pgxpool.Pool
 }
@@ -65,11 +33,11 @@ const conversationColumns = `id, user_id, role, content, created_at`
 
 // Create appends a single turn to a user's conversation history. Chat
 // turns are append-only; there is no Update.
-func (r *ConversationRepository) Create(ctx context.Context, c *Conversation) (*Conversation, error) {
+func (r *ConversationRepository) Create(ctx context.Context, c *models.Conversation) (*models.Conversation, error) {
 	if c == nil || c.UserID == "" || c.Content == "" {
 		return nil, fmt.Errorf("%w: user_id and content are required", ErrInvalidConversationInput)
 	}
-	if !c.Role.valid() {
+	if !c.Role.Valid() {
 		return nil, fmt.Errorf("%w: role %q is not one of user|assistant|system", ErrInvalidConversationInput, c.Role)
 	}
 
@@ -86,7 +54,7 @@ func (r *ConversationRepository) Create(ctx context.Context, c *Conversation) (*
 // prompt and the assistant's reply written together after a chat
 // completion. All rows are inserted in one transaction — either all
 // succeed or none do.
-func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*Conversation) ([]*Conversation, error) {
+func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*models.Conversation) ([]*models.Conversation, error) {
 	if len(turns) == 0 {
 		return nil, nil
 	}
@@ -102,9 +70,9 @@ func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*Conve
 		VALUES ($1, $2, $3)
 		RETURNING %s`, conversationColumns)
 
-	out := make([]*Conversation, 0, len(turns))
+	out := make([]*models.Conversation, 0, len(turns))
 	for _, t := range turns {
-		if t == nil || t.UserID == "" || t.Content == "" || !t.Role.valid() {
+		if t == nil || t.UserID == "" || t.Content == "" || !t.Role.Valid() {
 			return nil, fmt.Errorf("%w: all turns require user_id, valid role, and content", ErrInvalidConversationInput)
 		}
 		row := tx.QueryRow(ctx, q, t.UserID, t.Role, t.Content)
@@ -124,7 +92,7 @@ func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*Conve
 // ListRecentByUserID returns a user's most recent conversation turns in
 // chronological order (oldest first), suitable for feeding directly into
 // a Bedrock prompt as message history. limit <= 0 defaults to 20.
-func (r *ConversationRepository) ListRecentByUserID(ctx context.Context, userID string, limit int) ([]*Conversation, error) {
+func (r *ConversationRepository) ListRecentByUserID(ctx context.Context, userID string, limit int) ([]*models.Conversation, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -143,7 +111,7 @@ func (r *ConversationRepository) ListRecentByUserID(ctx context.Context, userID 
 	}
 	defer rows.Close()
 
-	var out []*Conversation
+	var out []*models.Conversation
 	for rows.Next() {
 		c, err := scanConversationRow(rows)
 		if err != nil {
@@ -176,7 +144,7 @@ type conversationRow interface {
 	Scan(dest ...any) error
 }
 
-func scanConversation(rw pgx.Row) (*Conversation, error) {
+func scanConversation(rw pgx.Row) (*models.Conversation, error) {
 	c, err := scanConversationRow(rw)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -187,12 +155,12 @@ func scanConversation(rw pgx.Row) (*Conversation, error) {
 	return c, nil
 }
 
-func scanConversationRow(rw conversationRow) (*Conversation, error) {
-	c := &Conversation{}
+func scanConversationRow(rw conversationRow) (*models.Conversation, error) {
+	c := &models.Conversation{}
 	var role string
 	if err := rw.Scan(&c.ID, &c.UserID, &role, &c.Content, &c.CreatedAt); err != nil {
 		return nil, err
 	}
-	c.Role = ConversationRole(role)
+	c.Role = models.ConversationRole(role)
 	return c, nil
 }

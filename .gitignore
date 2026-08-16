@@ -1,1 +1,8 @@
 .env
+.env.local
+node_modules/
+frontend/dist/
+cockroach-*/
+shorts
+open_issues.md
+IMPLEMENTATION_PLAN.md
