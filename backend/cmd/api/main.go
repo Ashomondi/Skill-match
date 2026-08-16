@@ -11,6 +11,7 @@ import (
 	"skill-match/backend/config"
 	"skill-match/backend/handlers"
 	"skill-match/backend/middleware"
+	"skill-match/backend/migrations"
 	"skill-match/backend/repositories"
 	"skill-match/backend/routes"
 	"skill-match/backend/services"
@@ -32,6 +33,11 @@ func main() {
 		defer p.Close()
 		pool = p
 		log.Println("connected to CockroachDB")
+
+		if err := migrations.Apply(ctx, pool); err != nil {
+			log.Fatalf("apply migrations: %v", err)
+		}
+		log.Println("database migrations up to date")
 	} else {
 		log.Println("warning: DATABASE_URL not set — running without persistence (health will report degraded)")
 	}
