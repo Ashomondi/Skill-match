@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
-import { useChat } from '../hooks/useChat';
+import { ArrowUp, Brain, Loader2, Sparkles } from 'lucide-react';
+import { useChat, MemorySource } from '../hooks/useChat';
 import { Conversation } from '../services/chat';
 
 interface ChatBoxProps {
@@ -8,8 +8,14 @@ interface ChatBoxProps {
   onChange: (conversation: Conversation) => void;
 }
 
+const sourceStyles: Record<MemorySource, string> = {
+  profile: 'bg-[var(--bg-chip)] text-[var(--text-insight)]',
+  resume: 'bg-[var(--bg-chip)] text-[var(--text-insight)]',
+  conversation: 'bg-[var(--bg-chip)] text-[var(--text-insight)]',
+};
+
 export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange }) => {
-  const { messages, loading, error, sendMessage } = useChat(conversation, onChange);
+  const { messages, loading, error, sendMessage, contextSources, contextLabel } = useChat(conversation, onChange);
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -24,9 +30,16 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange }) => {
   };
 
   return <section className="flex min-h-[520px] flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] shadow-sm">
-    <div className="flex items-center gap-3 border-b border-[var(--border-hairline)] px-5 py-4">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-card)] text-[var(--text-heading)]"><Sparkles size={17} /></span>
-      <div className="min-w-0"><h2 className="truncate font-semibold text-[var(--text-heading)]">{conversation.title}</h2><p className="text-xs text-[var(--text-muted)]">Career assistant</p></div>
+    <div className="border-b border-[var(--border-hairline)] px-5 py-4">
+      <div className="flex items-center gap-3">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-card)] text-[var(--text-heading)]"><Sparkles size={17} /></span>
+        <div className="min-w-0"><h2 className="truncate font-semibold text-[var(--text-heading)]">{conversation.title}</h2><p className="text-xs text-[var(--text-muted)]">Career assistant</p></div>
+        {loading && <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[var(--bg-chip)] px-3 py-1 text-xs text-[var(--text-muted)]"><Loader2 className="animate-spin" size={12} />Thinking…</span>}
+      </div>
+      {contextSources.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Memory context being used">
+        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--accent-gold)]"><Brain size={13} />Drawing on</span>
+        {contextSources.map((source, index) => <span key={source} className={`rounded-full px-2.5 py-1 text-xs ${sourceStyles[source]}`}>{contextLabel[index]}</span>)}
+      </div>}
     </div>
     <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
       {messages.length === 0 && <div className="mx-auto mt-12 max-w-sm text-center"><Sparkles className="mx-auto text-[var(--accent-gold)]" size={24} /><p className="mt-3 font-serif text-xl font-semibold text-[var(--text-heading)]">What would you like to work on?</p><p className="mt-2 text-sm text-[var(--text-muted)]">Try asking for role recommendations or feedback on your CV.</p></div>}
