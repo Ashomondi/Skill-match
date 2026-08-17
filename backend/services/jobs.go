@@ -39,3 +39,7 @@ func NewJobService(
 func (s *JobService) SearchJobs(ctx context.Context, filter repositories.JobSearchFilter) (*repositories.JobSearchResult, error) {
 	return s.repo.Search(ctx, filter)
 }
+
+func (s *JobService) MatchJobs(ctx context.Context, filter repositories.SemanticMatchFilter) ([]*repositories.MatchScore, error) {
+	return s.repo.MatchJobs(ctx, filter)
+}
