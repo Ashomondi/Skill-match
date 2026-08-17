@@ -1,36 +1,3 @@
-<<<<<<< HEAD
-import api from './api';
-
-export interface Application {
-  id: string;
-  jobId: string;
-  jobTitle: string;
-  company: string;
-  status: 'Applied' | 'Phone Screening' | 'Interviewing' | 'Offered' | 'Rejected' | 'Withdrawn';
-  appliedDate: string;
-  notes?: string;
-  location?: string;
-}
-
-export interface UpdateApplicationDTO {
-  status?: Application['status'];
-  notes?: string;
-}
-
-export const applicationService = {
-  async getApplications(): Promise<Application[]> {
-    const response = await api.get('/applications');
-    return response.data;
-  },
-
-  async updateApplication(id: string, data: UpdateApplicationDTO): Promise<Application> {
-    const response = await api.put(`/applications/${id}`, data);
-    return response.data;
-  },
-
-  async deleteApplication(id: string): Promise<void> {
-    await api.delete(`/applications/${id}`);
-=======
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 export type ApplicationStatus = 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
@@ -51,14 +18,33 @@ const normalize = (item: any): Application => {
   };
 };
 
+const headers = (): Record<string, string> => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const errorMessage = async (response: Response, fallback: string) => {
+  const body = await response.json().catch(() => ({}));
+  return body.error || body.message || fallback;
+};
+
 export const applicationService = {
   async list(): Promise<Application[]> {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/applications`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const response = await fetch(`${API_BASE_URL}/applications`, { headers: headers() });
+    if (!response.ok) throw new Error(await errorMessage(response, 'Applications could not be loaded.'));
     const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(body?.error || body?.message || 'Applications could not be loaded.');
     const items = Array.isArray(body) ? body : body?.applications ?? body?.data ?? [];
     return Array.isArray(items) ? items.map(normalize) : [];
->>>>>>> main
+  },
+
+  async apply(jobId: string): Promise<Application> {
+    const response = await fetch(`${API_BASE_URL}/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers() },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+    if (!response.ok) throw new Error(await errorMessage(response, 'Your application could not be submitted.'));
+    const body = await response.json().catch(() => ({}));
+    return normalize(body.application ?? body);
   },
 };
