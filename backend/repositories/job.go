@@ -41,6 +41,18 @@ type JobRepository struct {
 	db *pgxpool.Pool
 }
 
+type MatchScore struct {
+	Job        *Job    `json:"job"`
+	Score      float64 `json:"score"`
+	MatchedOn []string `json:"matched_skills,omitempty"`
+}
+
+type SemanticMatchFilter struct {
+	UserSkills []string `json:"user_skills"`
+	MinScore   float64  `json:"min_score"`
+	Limit      int      `json:"limit"`
+}
+
 func NewJobRepository(db *pgxpool.Pool) *JobRepository {
 	return &JobRepository{db: db}
 }
@@ -127,4 +139,64 @@ func (r *JobRepository) Search(ctx context.Context, filter JobSearchFilter) (*Jo
 		Jobs:  jobs,
 		Total: total,
 	}, nil
+}
+
+func (r *JobRepository) MatchJobs(ctx context.Context, filter SemanticMatchFilter) ([]*MatchScore, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 10
+	}
+
+	if len(filter.UserSkills) == 0 {
+		return []*MatchScore{}, nil
+	}
+
+	// Prepare terms for ILIKE and array keyword matching
+	var matches []*MatchScore
+	query := `
+		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+		FROM jobs
+		WHERE 1=1
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: match jobs query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		j := &Job{}
+		if err := rows.Scan(
+			&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
+			&j.Description, &j.Salary, &j.Remote, &j.SourceURL,
+			&j.CreatedAt, &j.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("repositories: scan matched job: %w", err)
+		}
+
+		// Calculate term match ratio over job description and title
+		matched := []string{}
+		textToSearch := strings.ToLower(j.Title + " " + j.Description)
+		
+		for _, skill := range filter.UserSkills {
+			skillLower := strings.ToLower(strings.TrimSpace(skill))
+			if skillLower != "" && strings.Contains(textToSearch, skillLower) {
+				matched = append(matched, skill)
+			}
+		}
+		score := 0.0
+		if len(filter.UserSkills) > 0 {
+			score = float64(len(matched)) / float64(len(filter.UserSkills))
+		}
+
+		if score >= filter.MinScore {
+			matches = append(matches, &MatchScore{
+				Job:        j,
+				Score:      score,
+				MatchedOn: matched,
+			})
+		}
+	}
+
+	return matches, nil
 }
