@@ -50,4 +50,20 @@ export const savedJobsService = {
     const response = await fetch(`${API_BASE_URL}/saved-jobs/${id}`, { method: 'DELETE', headers: headers() });
     if (!response.ok) throw new Error(await errorMessage(response, 'The saved job could not be removed.'));
   },
+
+  async save(jobId: string): Promise<SavedJob> {
+    const response = await fetch(`${API_BASE_URL}/saved-jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers() },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+    if (!response.ok) throw new Error(await errorMessage(response, 'The job could not be saved.'));
+    const body = await response.json().catch(() => ({}));
+    return normalizeSavedJob(body.saved_job ?? body);
+  },
+
+  async isSaved(jobId: string): Promise<boolean> {
+    const jobs = await this.list();
+    return jobs.some((job) => job.jobId === jobId);
+  },
 };
