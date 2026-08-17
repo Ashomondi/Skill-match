@@ -149,7 +149,7 @@ func TestResumeCreateRequiresAuth(t *testing.T) {
 	h, _, _ := newTestResumeHandler()
 	handler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
 
-	req := multipartRequest(t, "resume.pdf", "application/pdf", "%PDF", "", "")
+	req := multipartRequest(t, "resume.pdf", "application/pdf", "%PDF-1.4", "", "")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -191,13 +191,13 @@ func TestResumeCreateReplaceSendsReplaceId(t *testing.T) {
 	h, repo, _ := newTestResumeHandler()
 	handler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
 
-	first := performAuthorized(t, handler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "A", "", ""))
+	first := performAuthorized(t, handler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "%PDF-1.4 a", "", ""))
 	if first.Code != http.StatusCreated {
 		t.Fatalf("setup upload: %d", first.Code)
 	}
 	oldID := repo.byUser["user-1"][0].ID
 
-	rec := performAuthorized(t, handler, "user-1", multipartRequest(t, "b.pdf", "application/pdf", "B", "replaceId", oldID))
+	rec := performAuthorized(t, handler, "user-1", multipartRequest(t, "b.pdf", "application/pdf", "%PDF-1.4 b", "replaceId", oldID))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
 	}
@@ -226,8 +226,8 @@ func TestResumeListRequiresAuth(t *testing.T) {
 func TestResumeListReturnsUsersResumes(t *testing.T) {
 	h, repo, _ := newTestResumeHandler()
 	createHandler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
-	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "A", "", ""))
-	performAuthorized(t, createHandler, "user-2", multipartRequest(t, "b.pdf", "application/pdf", "B", "", ""))
+	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "%PDF-1.4 a", "", ""))
+	performAuthorized(t, createHandler, "user-2", multipartRequest(t, "b.pdf", "application/pdf", "%PDF-1.4 b", "", ""))
 
 	if len(repo.byUser["user-1"]) != 1 {
 		t.Fatalf("setup: expected 1 resume for user-1")
@@ -249,7 +249,7 @@ func TestResumeListReturnsUsersResumes(t *testing.T) {
 func TestResumeGetReturnsPresignedURL(t *testing.T) {
 	h, repo, _ := newTestResumeHandler()
 	createHandler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
-	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "A", "", ""))
+	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "%PDF-1.4 a", "", ""))
 	id := repo.byUser["user-1"][0].ID
 
 	getHandler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Get))
@@ -280,7 +280,7 @@ func TestResumeDeleteRequiresAuth(t *testing.T) {
 func TestResumeDeleteEnforcesOwnership(t *testing.T) {
 	h, repo, storage := newTestResumeHandler()
 	createHandler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
-	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "A", "", ""))
+	performAuthorized(t, createHandler, "user-1", multipartRequest(t, "a.pdf", "application/pdf", "%PDF-1.4 a", "", ""))
 	id := repo.byUser["user-1"][0].ID
 
 	deleteHandler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Delete))

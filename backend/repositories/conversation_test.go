@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"skill-match/backend/clients"
 	"skill-match/backend/models"
 )
 
@@ -30,7 +29,7 @@ func connectTestPool(t *testing.T) *pgxpool.Pool {
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
-	pool, err := clients.NewPool(context.Background(), dsn, clients.PoolOptions{})
+	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("connect to cockroachdb: %v", err)
 	}
@@ -38,13 +37,13 @@ func connectTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func createTestUser(t *testing.T, pool *pgxpool.Pool) *models.User {
+func createTestUser(t *testing.T, pool *pgxpool.Pool) *User {
 	t.Helper()
 	userRepo := NewUserRepository(pool)
-	user, err := userRepo.Create(context.Background(), &models.User{
-		Email:    fmt.Sprintf("it-%d@skillmatch.local", time.Now().UnixNano()),
-		Password: "integration-placeholder-hash",
-		FullName: "Integration Tester",
+	user, err := userRepo.Create(context.Background(), &User{
+		Email:        fmt.Sprintf("it-%d@skillmatch.local", time.Now().UnixNano()),
+		PasswordHash: "integration-placeholder-hash",
+		FullName:     "Integration Tester",
 	})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
@@ -216,7 +215,7 @@ func TestConversationDatabaseFailure(t *testing.T) {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
 
-	pool, err := clients.NewPool(context.Background(), dsn, clients.PoolOptions{})
+	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}

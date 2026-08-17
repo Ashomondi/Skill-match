@@ -18,8 +18,7 @@ var (
 )
 
 // ConversationRepository provides persistence operations for chat history
-// backed by CockroachDB. It operates on the canonical models.Conversation
-// type and models.ConversationRole.
+// backed by CockroachDB.
 type ConversationRepository struct {
 	db *pgxpool.Pool
 }
@@ -39,15 +38,39 @@ const conversationColumns = `
 	created_at
 `
 
-// Create appends a single turn to a user's conversation history. Chat
-// turns are append-only; there is no Update.
-func (r *ConversationRepository) Create(ctx context.Context, c *models.Conversation) (*models.Conversation, error) {
-	if c == nil || c.UserID == "" || c.Content == "" {
-		return nil, fmt.Errorf("%w: user_id and content are required", ErrInvalidConversationInput)
-	}
-	if !c.Role.Valid() {
-		return nil, fmt.Errorf("%w: role %q is not one of user|assistant|system", ErrInvalidConversationInput, c.Role)
+// Create appends a single turn to a user's conversation history.
+func (r *ConversationRepository) Create(
+	ctx context.Context,
+	c *models.Conversation,
+) (*models.Conversation, error) {
 
+	if c == nil {
+		return nil, fmt.Errorf(
+			"%w: conversation cannot be nil",
+			ErrInvalidConversationInput,
+		)
+	}
+
+	if c.UserID == "" {
+		return nil, fmt.Errorf(
+			"%w: user_id is required",
+			ErrInvalidConversationInput,
+		)
+	}
+
+	if c.Content == "" {
+		return nil, fmt.Errorf(
+			"%w: content is required",
+			ErrInvalidConversationInput,
+		)
+	}
+
+	if !c.Role.Valid() {
+		return nil, fmt.Errorf(
+			"%w: role %q is not one of user|assistant|system",
+			ErrInvalidConversationInput,
+			c.Role,
+		)
 	}
 
 	q := fmt.Sprintf(`
@@ -71,11 +94,14 @@ func (r *ConversationRepository) Create(ctx context.Context, c *models.Conversat
 	return scanConversation(row)
 }
 
-// CreateBatch inserts multiple turns in a single round trip, e.g. a user
-// prompt and the assistant's reply written together after a chat
-// completion. All rows are inserted in one transaction — either all
-// succeed or none do.
-func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*models.Conversation) ([]*models.Conversation, error) {
+// CreateBatch inserts multiple conversation turns in one transaction.
+//
+// This is useful when saving both a user's message and the assistant's
+// response after an AI request.
+func (r *ConversationRepository) CreateBatch(
+	ctx context.Context,
+	turns []*models.Conversation,
+) ([]*models.Conversation, error) {
 
 	if len(turns) == 0 {
 		return nil, nil
@@ -101,11 +127,18 @@ func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*model
 		RETURNING %s
 	`, conversationColumns)
 
-	out := make([]*models.Conversation, 0, len(turns))
-	for _, t := range turns {
-		if t == nil || t.UserID == "" || t.Content == "" || !t.Role.Valid() {
-			return nil, fmt.Errorf("%w: all turns require user_id, valid role, and content", ErrInvalidConversationInput)
+	out := make(
+		[]*models.Conversation,
+		0,
+		len(turns),
+	)
 
+	for _, turn := range turns {
+		if turn == nil {
+			return nil, fmt.Errorf(
+				"%w: conversation turn cannot be nil",
+				ErrInvalidConversationInput,
+			)
 		}
 
 		if turn.UserID == "" {
@@ -156,12 +189,6 @@ func (r *ConversationRepository) CreateBatch(ctx context.Context, turns []*model
 	return out, nil
 }
 
-<<<<<<< HEAD
-// ListRecentByUserID returns a user's most recent conversation turns in
-// chronological order (oldest first), suitable for feeding directly into
-// a Bedrock prompt as message history. limit <= 0 defaults to 20.
-func (r *ConversationRepository) ListRecentByUserID(ctx context.Context, userID string, limit int) ([]*models.Conversation, error) {
-=======
 // ListRecentByUserID returns a user's most recent conversation turns.
 //
 // Results are returned in chronological order, oldest first.
@@ -178,7 +205,6 @@ func (r *ConversationRepository) ListRecentByUserID(
 		)
 	}
 
->>>>>>> dev
 	if limit <= 0 {
 		limit = 20
 	}
@@ -206,12 +232,8 @@ func (r *ConversationRepository) ListRecentByUserID(
 
 	defer rows.Close()
 
-<<<<<<< HEAD
-	var out []*models.Conversation
-=======
 	var conversations []*models.Conversation
 
->>>>>>> dev
 	for rows.Next() {
 		conversation, err := scanConversationRow(rows)
 		if err != nil {
@@ -282,17 +304,12 @@ type conversationRow interface {
 	Scan(dest ...any) error
 }
 
-<<<<<<< HEAD
-func scanConversation(rw pgx.Row) (*models.Conversation, error) {
-	c, err := scanConversationRow(rw)
-=======
 func scanConversation(
 	row pgx.Row,
 ) (*models.Conversation, error) {
 
 	conversation, err := scanConversationRow(row)
 
->>>>>>> dev
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrConversationNotFound
@@ -307,17 +324,12 @@ func scanConversation(
 	return conversation, nil
 }
 
-<<<<<<< HEAD
-func scanConversationRow(rw conversationRow) (*models.Conversation, error) {
-	c := &models.Conversation{}
-=======
 func scanConversationRow(
 	row conversationRow,
 ) (*models.Conversation, error) {
 
 	conversation := &models.Conversation{}
 
->>>>>>> dev
 	var role string
 
 	if err := row.Scan(
@@ -329,13 +341,8 @@ func scanConversationRow(
 	); err != nil {
 		return nil, err
 	}
-<<<<<<< HEAD
-	c.Role = models.ConversationRole(role)
-	return c, nil
-=======
 
 	conversation.Role = models.ConversationRole(role)
 
 	return conversation, nil
->>>>>>> dev
 }

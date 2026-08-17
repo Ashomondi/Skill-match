@@ -1,12 +1,8 @@
 package routes
 
 import (
-	"log"
 	"net/http"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"skill-match/backend/clients"
 	"skill-match/backend/handlers"
 	"skill-match/backend/middleware"
 	"skill-match/backend/utils"
@@ -24,22 +20,18 @@ func RegisterHealth(mux *http.ServeMux, healthHandler *handlers.HealthHandler) {
 	mux.HandleFunc("GET /health", healthHandler.Health)
 }
 
-// RegisterAuth exposes the public authentication endpoints.
 func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 }
 
-func RegisterResume(mux *http.ServeMux, h *handlers.ResumeHandler) {
-	mux.HandleFunc("POST /api/resumes", h.Upload)
-	mux.HandleFunc("PUT /api/resumes/{id}", h.Update)
-	mux.HandleFunc("DELETE /api/resumes/{id}", h.Delete)
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+// RegisterResumes exposes the resume endpoints, all protected by auth.
+func RegisterResumes(mux *http.ServeMux, h *handlers.ResumeHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("GET /api/resumes", auth(http.HandlerFunc(h.List)))
+	mux.Handle("POST /api/resumes", auth(http.HandlerFunc(h.Create)))
+	mux.Handle("GET /api/resumes/{id}", auth(http.HandlerFunc(h.Get)))
+	mux.Handle("DELETE /api/resumes/{id}", auth(http.HandlerFunc(h.Delete)))
 }
 
 func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {

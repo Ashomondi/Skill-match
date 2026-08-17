@@ -77,4 +77,3 @@ func AsAppError(err error) (*AppError, bool) {
 	ok := errors.As(err, &appErr)
 	return appErr, ok
 }
-

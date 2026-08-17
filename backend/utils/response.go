@@ -72,4 +72,3 @@ func safeLogKey(key string) bool {
 		return false
 	}
 }
-

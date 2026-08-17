@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,9 +31,8 @@ type S3Client struct {
 	bucket        string
 }
 
-
-func NewS3Client(ctx context.Context, region, bucket string) (*S3Client, error) {
-	if bucket == "" {
+func NewS3Client(ctx context.Context, cfg S3Config) (*S3Client, error) {
+	if cfg.Bucket == "" {
 		return nil, fmt.Errorf("s3 bucket name is required but was empty")
 	}
 	if cfg.Region == "" {
@@ -95,7 +93,7 @@ func (c *S3Client) PresignUpload(ctx context.Context, key, contentType string, e
 		ContentType: aws.String(contentType),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("presigning upload: %w", err)
+		return "", fmt.Errorf("presigning upload for key %s: %w", key, err)
 	}
 	return request.URL, nil
 }
@@ -106,7 +104,7 @@ func (c *S3Client) PresignDownload(ctx context.Context, key string, expiry time.
 		Key:    aws.String(key),
 	}, s3.WithPresignExpires(expiry))
 	if err != nil {
-		return "", fmt.Errorf("presigning download: %w", err)
+		return "", fmt.Errorf("presigning download for key %s: %w", key, err)
 	}
 	return request.URL, nil
 }
@@ -117,29 +115,13 @@ func (c *S3Client) Delete(ctx context.Context, key string) error {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return fmt.Errorf("deleting object: %w", err)
+		return fmt.Errorf("deleting key %s: %w", key, err)
 	}
 	return nil
 }
-<<<<<<< HEAD
-=======
 
-func (c *S3Client) Download(ctx context.Context, key string) ([]byte, error) {
-	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(c.bucket),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("downloading object: %w", err)
-	}
-	defer result.Body.Close()
-
-	data, err := io.ReadAll(result.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading downloaded content: %w", err)
-	}
-	return data, nil
-}
+// Ping verifies the configured bucket is reachable. Used by the health
+// endpoint's storage check.
 func (c *S3Client) Ping(ctx context.Context) error {
 	_, err := c.client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(c.bucket),
@@ -149,4 +131,3 @@ func (c *S3Client) Ping(ctx context.Context) error {
 	}
 	return nil
 }
->>>>>>> dev

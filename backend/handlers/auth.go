@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 
-	"skill-match/backend/models"
 	"skill-match/backend/services"
 	"skill-match/backend/utils"
 )
@@ -115,17 +114,3 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Token:   token,
 	})
 }
-
-// func writeJSON(
-// 	w http.ResponseWriter,
-// 	status int,
-// 	data interface{},
-// ) {
-// 	w.Header().Set("Content-Type", "application/json")
-// 	w.WriteHeader(status)
-
-// 	if err := json.NewEncoder(w).Encode(data); err != nil {
-// 		return
-// 	}
-// }
-

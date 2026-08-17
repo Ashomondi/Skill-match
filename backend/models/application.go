@@ -2,37 +2,36 @@ package models
 
 import "time"
 
-// ApplicationStatus mirrors the CHECK constraint in migrations/006_applications.sql.
-// Keep in sync if the constraint changes.
 type ApplicationStatus string
 
 const (
-	ApplicationStatusApplied   ApplicationStatus = "applied"
-	ApplicationStatusScreening ApplicationStatus = "screening"
-	ApplicationStatusInterview ApplicationStatus = "interview"
-	ApplicationStatusOffer     ApplicationStatus = "offer"
-	ApplicationStatusRejected  ApplicationStatus = "rejected"
-	ApplicationStatusWithdrawn ApplicationStatus = "withdrawn"
+	ApplicationSaved     ApplicationStatus = "saved"
+	ApplicationApplied   ApplicationStatus = "applied"
+	ApplicationScreening ApplicationStatus = "screening"
+	ApplicationInterview ApplicationStatus = "interview"
+	ApplicationOffer     ApplicationStatus = "offer"
+	ApplicationRejected  ApplicationStatus = "rejected"
+	ApplicationWithdrawn ApplicationStatus = "withdrawn"
 )
 
 func (s ApplicationStatus) Valid() bool {
 	switch s {
-	case ApplicationStatusApplied, ApplicationStatusScreening, ApplicationStatusInterview,
-		ApplicationStatusOffer, ApplicationStatusRejected, ApplicationStatusWithdrawn:
+	case ApplicationSaved, ApplicationApplied, ApplicationScreening, ApplicationInterview, ApplicationOffer, ApplicationRejected, ApplicationWithdrawn:
 		return true
-	default:
-		return false
 	}
+	return false
 }
 
-// Application is a user's job application and its current status. JobID is
-// optional (the job may have been removed; the application is kept).
+type ApplicationStatusChange struct {
+	Status    ApplicationStatus `json:"status"`
+	ChangedAt time.Time         `json:"changed_at"`
+}
 type Application struct {
-	ID        string
-	UserID    string
-	JobID     *string
-	Status    ApplicationStatus
-	AppliedAt time.Time
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        string                    `json:"id"`
+	UserID    string                    `json:"user_id"`
+	JobID     string                    `json:"job_id"`
+	Status    ApplicationStatus         `json:"status"`
+	CreatedAt time.Time                 `json:"created_at"`
+	UpdatedAt time.Time                 `json:"updated_at"`
+	History   []ApplicationStatusChange `json:"history,omitempty"`
 }

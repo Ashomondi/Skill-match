@@ -3,8 +3,8 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -89,4 +89,3 @@ func RecordFailure(category string) {
 		slog.Warn("repeated failures detected", "category", category, "count", len(recent), "window", tracker.window.String())
 	}
 }
-

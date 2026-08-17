@@ -11,7 +11,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"skill-match/backend/clients"
 	"skill-match/backend/models"
 	"skill-match/backend/repositories"
 )
@@ -30,7 +29,7 @@ func memoryTestPool(t *testing.T) *pgxpool.Pool {
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
-	pool, err := clients.NewPool(context.Background(), dsn, clients.PoolOptions{})
+	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("connect to cockroachdb: %v", err)
 	}
@@ -38,13 +37,13 @@ func memoryTestPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-func memoryTestUser(t *testing.T, pool *pgxpool.Pool) *models.User {
+func memoryTestUser(t *testing.T, pool *pgxpool.Pool) *repositories.User {
 	t.Helper()
 	userRepo := repositories.NewUserRepository(pool)
-	user, err := userRepo.Create(context.Background(), &models.User{
-		Email:    fmt.Sprintf("mem-%d@skillmatch.local", time.Now().UnixNano()),
-		Password: "integration-placeholder-hash",
-		FullName: "Memory Tester",
+	user, err := userRepo.Create(context.Background(), &repositories.User{
+		Email:        fmt.Sprintf("mem-%d@skillmatch.local", time.Now().UnixNano()),
+		PasswordHash: "integration-placeholder-hash",
+		FullName:     "Memory Tester",
 	})
 	if err != nil {
 		t.Fatalf("create user: %v", err)
@@ -53,11 +52,11 @@ func memoryTestUser(t *testing.T, pool *pgxpool.Pool) *models.User {
 	return user
 }
 
-// embeddingVector builds a 1536-dim vector (the fixed Titan dimension) whose
+// embeddingVector builds a 1024-dim vector (the fixed Titan dimension) whose
 // value is dominated by the seed, so two vectors with similar seeds have a
 // tiny cosine distance and are reliably recalled as nearest neighbors.
 func embeddingVector(seed float32) []float32 {
-	vec := make([]float32, 1536)
+	vec := make([]float32, repositories.EmbeddingDim)
 	vec[0] = seed
 	vec[1] = seed * 0.5
 	vec[2] = seed * 0.25
@@ -82,9 +81,9 @@ func TestMemoryRecallAcrossConversations(t *testing.T) {
 		t.Fatalf("create turn: %v", err)
 	}
 
-	_, err = embedRepo.Upsert(ctx, &models.Embedding{
+	_, err = embedRepo.Upsert(ctx, &repositories.Embedding{
 		UserID:     user.ID,
-		SourceType: models.EmbeddingSourceConversation,
+		SourceType: repositories.EmbeddingSourceConversation,
 		SourceID:   turn.ID,
 		Vector:     embeddingVector(1.0),
 	})
@@ -93,7 +92,7 @@ func TestMemoryRecallAcrossConversations(t *testing.T) {
 	}
 
 	// During a later conversation a similar query must recall that memory.
-	results, err := embedRepo.FindSimilar(ctx, embeddingVector(0.8), models.EmbeddingSourceConversation, user.ID, 5)
+	results, err := embedRepo.FindSimilar(ctx, embeddingVector(0.8), repositories.EmbeddingSourceConversation, user.ID, 5)
 	if err != nil {
 		t.Fatalf("find similar: %v", err)
 	}
@@ -113,15 +112,15 @@ func TestMemoryRecallUserIsolation(t *testing.T) {
 	embedRepo := repositories.NewEmbeddingRepository(pool)
 	ctx := context.Background()
 
-	store := func(user *models.User, content string) string {
+	store := func(user *repositories.User, content string) string {
 		t.Helper()
 		turn, err := convRepo.Create(ctx, &models.Conversation{UserID: user.ID, Role: models.ConversationRoleUser, Content: content})
 		if err != nil {
 			t.Fatalf("create turn for %s: %v", user.ID, err)
 		}
-		if _, err := embedRepo.Upsert(ctx, &models.Embedding{
+		if _, err := embedRepo.Upsert(ctx, &repositories.Embedding{
 			UserID:     user.ID,
-			SourceType: models.EmbeddingSourceConversation,
+			SourceType: repositories.EmbeddingSourceConversation,
 			SourceID:   turn.ID,
 			Vector:     embeddingVector(1.0),
 		}); err != nil {
@@ -134,7 +133,7 @@ func TestMemoryRecallUserIsolation(t *testing.T) {
 	store(userB, "memory of user B")
 
 	// Querying user A's memory must not surface user B's embedding.
-	results, err := embedRepo.FindSimilar(ctx, embeddingVector(0.9), models.EmbeddingSourceConversation, userA.ID, 10)
+	results, err := embedRepo.FindSimilar(ctx, embeddingVector(0.9), repositories.EmbeddingSourceConversation, userA.ID, 10)
 	if err != nil {
 		t.Fatalf("find similar: %v", err)
 	}
@@ -154,7 +153,7 @@ func TestMemoryRecallDatabaseFailure(t *testing.T) {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
 
-	pool, err := clients.NewPool(context.Background(), dsn, clients.PoolOptions{})
+	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -163,7 +162,7 @@ func TestMemoryRecallDatabaseFailure(t *testing.T) {
 	embedRepo := repositories.NewEmbeddingRepository(pool)
 	ctx := context.Background()
 
-	if _, err := embedRepo.FindSimilar(ctx, embeddingVector(1.0), models.EmbeddingSourceConversation, "user-x", 5); err == nil {
+	if _, err := embedRepo.FindSimilar(ctx, embeddingVector(1.0), repositories.EmbeddingSourceConversation, "user-x", 5); err == nil {
 		t.Fatal("expected an error when the database is unavailable")
 	}
 }

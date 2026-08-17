@@ -176,12 +176,12 @@ func TestUploadRollsBackObjectWhenCreateFails(t *testing.T) {
 func TestUploadReplaceRemovesOldResume(t *testing.T) {
 	svc, storage, repo := testResumeService()
 
-	old, err := svc.Upload(context.Background(), testUserID, "", "old.pdf", pdfCT, []byte("old"))
+	old, err := svc.Upload(context.Background(), testUserID, "", "old.pdf", pdfCT, []byte("%PDF-1.4 old"))
 	if err != nil {
 		t.Fatalf("upload old: %v", err)
 	}
 
-	newRes, err := svc.Upload(context.Background(), testUserID, old.ID, "new.pdf", pdfCT, []byte("new"))
+	newRes, err := svc.Upload(context.Background(), testUserID, old.ID, "new.pdf", pdfCT, []byte("%PDF-1.4 new"))
 	if err != nil {
 		t.Fatalf("upload new: %v", err)
 	}
@@ -200,13 +200,13 @@ func TestUploadReplaceRemovesOldResume(t *testing.T) {
 func TestUploadRejectsReplacingOthersResume(t *testing.T) {
 	svc, storage, _ := testResumeService()
 
-	other, err := svc.Upload(context.Background(), "user-other", "", "other.pdf", pdfCT, []byte("other"))
+	other, err := svc.Upload(context.Background(), "user-other", "", "other.pdf", pdfCT, []byte("%PDF-1.4 other"))
 	if err != nil {
 		t.Fatalf("upload other: %v", err)
 	}
 
 	before := len(storage.objects)
-	_, err = svc.Upload(context.Background(), testUserID, other.ID, "mine.pdf", pdfCT, []byte("mine"))
+	_, err = svc.Upload(context.Background(), testUserID, other.ID, "mine.pdf", pdfCT, []byte("%PDF-1.4 mine"))
 	if !errors.Is(err, ErrResumeAccessDenied) {
 		t.Fatalf("expected ErrResumeAccessDenied, got %v", err)
 	}
@@ -237,7 +237,7 @@ func TestDeleteRemovesObjectAndRow(t *testing.T) {
 func TestDeleteDeniesOtherUsersResume(t *testing.T) {
 	svc, storage, _ := testResumeService()
 
-	res, err := svc.Upload(context.Background(), "user-other", "", "other.pdf", pdfCT, []byte("other"))
+	res, err := svc.Upload(context.Background(), "user-other", "", "other.pdf", pdfCT, []byte("%PDF-1.4 other"))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
@@ -271,11 +271,11 @@ func TestDownloadURLPresignsOwnedResume(t *testing.T) {
 func TestListScopesByUser(t *testing.T) {
 	svc, _, _ := testResumeService()
 
-	_, err := svc.Upload(context.Background(), testUserID, "", "a.pdf", pdfCT, []byte("a"))
+	_, err := svc.Upload(context.Background(), testUserID, "", "a.pdf", pdfCT, []byte("%PDF-1.4 a"))
 	if err != nil {
 		t.Fatalf("upload a: %v", err)
 	}
-	_, err = svc.Upload(context.Background(), "user-other", "", "b.pdf", pdfCT, []byte("b"))
+	_, err = svc.Upload(context.Background(), "user-other", "", "b.pdf", pdfCT, []byte("%PDF-1.4 b"))
 	if err != nil {
 		t.Fatalf("upload b: %v", err)
 	}

@@ -28,7 +28,6 @@ type ApplicationService struct{ repo ApplicationRepository }
 func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
-
 func (s *ApplicationService) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
 	if strings.TrimSpace(userID) == "" || uuid.Validate(jobID) != nil {
 		return nil, ErrApplicationInvalidInput

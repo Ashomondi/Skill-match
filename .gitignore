@@ -4,6 +4,7 @@ node_modules/
 frontend/dist/
 frontend/node_modules/
 cockroach-*/
+coverage.out
 shorts
 open_issues.md
 IMPLEMENTATION_PLAN.md

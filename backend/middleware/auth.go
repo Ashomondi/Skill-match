@@ -11,58 +11,75 @@ import (
 type contextKey string
 
 const (
-	contextKeyUserID contextKey = "user_id"
-	contextKeyEmail  contextKey = "email"
+	userIDKey contextKey = "userID"
+	claimsKey contextKey = "claims"
 )
 
-// Auth protects a handler behind a valid JWT. It validates the
-// Authorization: Bearer <token> header, then injects the authenticated
-// user's ID and email into the request context for downstream handlers and
-// services.
-func Auth(jwtManager *utils.JWTManager) Middleware {
+func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			header := r.Header.Get("Authorization")
-			if !strings.HasPrefix(header, "Bearer ") {
-				writeUnauthorized(w)
+			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+			if authHeader == "" {
+				utils.WriteRequestError(w, r, utils.NewAuthError("Authentication is required.", http.StatusUnauthorized))
 				return
 			}
 
-			claims, err := jwtManager.ValidateToken(strings.TrimPrefix(header, "Bearer "))
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid authorization header.", http.StatusUnauthorized))
+				return
+			}
+
+			token := strings.TrimSpace(parts[1])
+			if token == "" {
+				utils.WriteRequestError(w, r, utils.NewAuthError("Authentication is required.", http.StatusUnauthorized))
+				return
+			}
+
+			claims, err := jwtManager.ValidateToken(token)
 			if err != nil {
-				writeUnauthorized(w)
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid or expired token.", http.StatusUnauthorized))
 				return
 			}
 
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, contextKeyUserID, claims.UserID)
-			ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
+			if strings.TrimSpace(claims.UserID) == "" {
+				utils.WriteRequestError(w, r, utils.NewAuthError("Invalid authentication claims.", http.StatusUnauthorized))
+				return
+			}
+
+			ctx := context.WithValue(
+				r.Context(),
+				userIDKey,
+				claims.UserID,
+			)
+
+			ctx = context.WithValue(
+				ctx,
+				claimsKey,
+				claims,
+			)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
-// UserIDFromContext returns the authenticated user's ID injected by Auth,
-// or "" when the request is not authenticated.
-func UserIDFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(contextKeyUserID).(string); ok {
-		return v
+// GetUserID retrieves the authenticated user's ID from the request context.
+func GetUserID(r *http.Request) (string, bool) {
+	userID, ok := r.Context().
+		Value(userIDKey).(string)
+
+	if !ok || strings.TrimSpace(userID) == "" {
+		return "", false
 	}
-	return ""
+
+	return userID, true
 }
 
-// EmailFromContext returns the authenticated user's email injected by Auth,
-// or "" when the request is not authenticated.
-func EmailFromContext(ctx context.Context) string {
-	if v, ok := ctx.Value(contextKeyEmail).(string); ok {
-		return v
-	}
-	return ""
-}
-
-func writeUnauthorized(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte(`{"error":"unauthorized"}`))
+// ClaimsFromContext retrieves JWT claims from the context.
+// ClaimsFromContext retrieves the authenticated user's JWT claims from
+// the context, or nil if unauthenticated.
+func ClaimsFromContext(ctx context.Context) *utils.Claims {
+	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
+	return claims
 }

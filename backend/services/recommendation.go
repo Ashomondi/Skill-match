@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"skill-match/backend/models"
 	"skill-match/backend/repositories"
 )
 
@@ -27,8 +28,8 @@ type recommendationUserRepository interface {
 }
 
 type recommendationResumeRepository interface {
-	GetByID(ctx context.Context, id string) (*repositories.Resume, error)
-	ListByUserID(ctx context.Context, userID string, limit int) ([]*repositories.Resume, error)
+	GetByID(ctx context.Context, id string) (*models.Resume, error)
+	ListByUserID(ctx context.Context, userID string, limit int) ([]*models.Resume, error)
 }
 
 type recommendationEmbeddingRepository interface {
@@ -173,7 +174,7 @@ func (s *RecommendationService) validateDependencies() error {
 	return nil
 }
 
-func (s *RecommendationService) resumeForRequest(ctx context.Context, request RecommendationRequest) (*repositories.Resume, error) {
+func (s *RecommendationService) resumeForRequest(ctx context.Context, request RecommendationRequest) (*models.Resume, error) {
 	resumeID := strings.TrimSpace(request.ResumeID)
 	if resumeID != "" {
 		resume, err := s.resumes.GetByID(ctx, resumeID)
@@ -201,8 +202,8 @@ func (s *RecommendationService) resumeForRequest(ctx context.Context, request Re
 	return nil, fmt.Errorf("%w: no parsed resume is available", ErrRecommendationUnavailable)
 }
 
-func usableRecommendationResume(resume *repositories.Resume) bool {
-	return resume != nil && resume.Status == repositories.ResumeStatusParsed &&
+func usableRecommendationResume(resume *models.Resume) bool {
+	return resume != nil && resume.Status == models.ResumeStatusParsed &&
 		resume.ParsedText != nil && strings.TrimSpace(*resume.ParsedText) != ""
 }
 
