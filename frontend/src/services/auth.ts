@@ -4,6 +4,14 @@ const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL;
 const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD;
 const DEMO_NAME = import.meta.env.VITE_DEMO_NAME || 'Demo User';
 
+const errorMessage = async (response: Response, fallback: string): Promise<string> => {
+  const body = await response.json().catch(() => ({}));
+  return body?.error?.message || body?.message || body?.error || fallback;
+};
+
+// The backend wraps success payloads in { data: ... }.
+const unwrap = (body: any): AuthResponse => (body?.data ?? body) as AuthResponse;
+
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -41,11 +49,10 @@ export const authService = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to log in');
+      throw new Error(await errorMessage(response, 'Failed to log in'));
     }
 
-    const data: AuthResponse = await response.json();
+    const data = unwrap(await response.json());
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     return data;
@@ -59,11 +66,10 @@ export const authService = {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to register account');
+      throw new Error(await errorMessage(response, 'Failed to register account'));
     }
 
-    const data: AuthResponse = await response.json();
+    const data = unwrap(await response.json());
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     return data;

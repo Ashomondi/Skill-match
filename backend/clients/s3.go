@@ -119,3 +119,15 @@ func (c *S3Client) Delete(ctx context.Context, key string) error {
 	}
 	return nil
 }
+
+// Ping verifies the configured bucket is reachable. Used by the health
+// endpoint's storage check.
+func (c *S3Client) Ping(ctx context.Context) error {
+	_, err := c.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(c.bucket),
+	})
+	if err != nil {
+		return fmt.Errorf("checking bucket availability: %w", err)
+	}
+	return nil
+}

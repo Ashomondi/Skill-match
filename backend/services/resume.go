@@ -15,6 +15,7 @@ var (
 	ErrResumeNotFound     = errors.New("resume not found")
 	ErrResumeAccessDenied = errors.New("resume access denied")
 	ErrInvalidResume      = errors.New("invalid resume")
+	ErrResumeUnauthorized = ErrResumeAccessDenied // alias used by AI/recommendation services
 )
 
 // ObjectStorage is the subset of the S3 client the resume service needs.
@@ -56,7 +57,7 @@ func (s *ResumeService) Upload(ctx context.Context, userID, replaceID, filename,
 		return nil, fmt.Errorf("%w: user is required", ErrInvalidResume)
 	}
 
-	if err := utils.ValidateResumeFile(filename, contentType, int64(len(data))); err != nil {
+	if err := utils.ValidateResumeFile(filename, contentType, int64(len(data)), data); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidResume, err)
 	}
 

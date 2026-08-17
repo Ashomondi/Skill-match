@@ -9,12 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"skill-match/backend/models"
 )
 
 // Sentinel errors. Services should compare against these with errors.Is
@@ -25,8 +24,25 @@ var (
 	ErrInvalidUserInput = errors.New("repositories: invalid user input")
 )
 
+// User is the persistence-layer representation of a user row.
+//
+// NOTE: models.User (Issue 3, owned by Ashley) is expected to become the
+// canonical type once it lands. This struct mirrors the schema in
+// migrations/001_initial_schema.sql and should be replaced by a type alias
+// to models.User (or the repository methods updated to accept/return it) as
+// soon as that file exists, to avoid two divergent definitions.
+type User struct {
+	ID           string    `json:"id"`
+	Email        string    `json:"email"`
+	PasswordHash string    `json:"-"`
+	FullName     string    `json:"fullName"`
+	IsActive     bool      `json:"isActive"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
 // UserRepository provides persistence operations for users backed by
-// CockroachDB. It operates on the canonical models.User type.
+// CockroachDB.
 type UserRepository struct {
 	db *pgxpool.Pool
 }
@@ -42,8 +58,8 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 // the schema's case-insensitivity constraint.
 //
 // Returns ErrUserEmailTaken if the email is already registered.
-func (r *UserRepository) Create(ctx context.Context, u *models.User) (*models.User, error) {
-	if u == nil || strings.TrimSpace(u.Email) == "" || u.Password == "" {
+func (r *UserRepository) Create(ctx context.Context, u *User) (*User, error) {
+	if u == nil || strings.TrimSpace(u.Email) == "" || u.PasswordHash == "" {
 		return nil, fmt.Errorf("%w: email and password_hash are required", ErrInvalidUserInput)
 	}
 
@@ -54,10 +70,10 @@ func (r *UserRepository) Create(ctx context.Context, u *models.User) (*models.Us
 
 	email := strings.ToLower(strings.TrimSpace(u.Email))
 
-	row := r.db.QueryRow(ctx, q, email, u.Password, u.FullName)
+	row := r.db.QueryRow(ctx, q, email, u.PasswordHash, u.FullName)
 
-	out := &models.User{}
-	if err := row.Scan(&out.ID, &out.Email, &out.Password, &out.FullName,
+	out := &User{}
+	if err := row.Scan(&out.ID, &out.Email, &out.PasswordHash, &out.FullName,
 		&out.IsActive, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrUserEmailTaken
@@ -70,7 +86,7 @@ func (r *UserRepository) Create(ctx context.Context, u *models.User) (*models.Us
 
 // GetByID fetches a user by primary key. Returns ErrUserNotFound if no row
 // matches.
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	const q = `
 		SELECT id, email, password_hash, full_name, is_active, created_at, updated_at
 		FROM users
@@ -82,7 +98,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 // GetByEmail fetches a user by email (case-insensitive). Returns
 // ErrUserNotFound if no row matches. This is the primary lookup used by
 // the auth login flow.
-func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	const q = `
 		SELECT id, email, password_hash, full_name, is_active, created_at, updated_at
 		FROM users
@@ -150,11 +166,11 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 // scanOne runs a single-row query and maps it to a *User, translating
 // pgx.ErrNoRows into the package's sentinel ErrUserNotFound so callers never
 // need to import pgx directly.
-func (r *UserRepository) scanOne(ctx context.Context, query string, args ...any) (*models.User, error) {
+func (r *UserRepository) scanOne(ctx context.Context, query string, args ...any) (*User, error) {
 	row := r.db.QueryRow(ctx, query, args...)
 
-	u := &models.User{}
-	err := row.Scan(&u.ID, &u.Email, &u.Password, &u.FullName,
+	u := &User{}
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FullName,
 		&u.IsActive, &u.CreatedAt, &u.UpdatedAt)
 	switch {
 	case err == nil:

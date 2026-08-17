@@ -24,6 +24,9 @@ const mapStatus = (status: string): ResumeStatus => {
   return 'processing';
 };
 
+const errorMessage = (body: any, fallback: string): string =>
+  body?.error?.message || body?.error || body?.message || fallback;
+
 const normalize = (item: any): Resume => ({
   id: String(item.id),
   name: item.name || item.filename || 'Untitled resume',
@@ -38,7 +41,7 @@ export const resumeService = {
   async list(): Promise<Resume[]> {
     const response = await fetch(`${API_BASE_URL}/resumes`, { headers: authHeaders() });
     const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(body?.error || body?.message || 'Resumes could not be loaded.');
+    if (!response.ok) throw new Error(errorMessage(body, 'Resumes could not be loaded.'));
 
     const items = Array.isArray(body) ? body : body?.resumes ?? [];
     return Array.isArray(items) ? items.map(normalize) : [];
@@ -74,7 +77,7 @@ export const resumeService = {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(normalize(data));
         } else {
-          reject(new Error(data?.error || data?.message || `Upload failed with status ${xhr.status}`));
+          reject(new Error(errorMessage(data, `Upload failed with status ${xhr.status}`)));
         }
       };
 
@@ -87,7 +90,7 @@ export const resumeService = {
     const response = await fetch(`${API_BASE_URL}/resumes/${id}`, { method: 'DELETE', headers: authHeaders() });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.error || body?.message || 'The resume could not be deleted.');
+      throw new Error(errorMessage(body, 'The resume could not be deleted.'));
     }
   },
 };

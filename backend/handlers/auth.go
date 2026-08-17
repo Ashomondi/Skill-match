@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"skill-match/backend/models"
 	"skill-match/backend/services"
+	"skill-match/backend/utils"
 )
 
 type AuthHandler struct {
@@ -20,9 +20,9 @@ type AuthRequest struct {
 }
 
 type AuthResponse struct {
-	Message string       `json:"message"`
-	User    *models.User `json:"user,omitempty"`
-	Token   string       `json:"token,omitempty"`
+	Message string      `json:"message"`
+	User    interface{} `json:"user,omitempty"`
+	Token   string      `json:"token,omitempty"`
 }
 
 // NewAuthHandler creates a new authentication handler.
@@ -34,12 +34,15 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 
 // Register handles POST /api/auth/register.
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteRequestError(w, r, &utils.AppError{Category: utils.CategoryValidation, UserMsg: "Method not allowed.", StatusCode: http.StatusMethodNotAllowed})
+		return
+	}
+
 	var request AuthRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "invalid request body",
-		})
+		utils.WriteRequestError(w, r, utils.NewValidationError("Invalid request body.", nil))
 		return
 	}
 
@@ -53,30 +56,22 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrInvalidEmail):
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "invalid email address",
-			})
+			utils.WriteRequestError(w, r, utils.NewValidationError("Invalid email address.", nil))
 
 		case errors.Is(err, services.ErrInvalidPassword):
-			writeJSON(w, http.StatusBadRequest, map[string]string{
-				"error": "password must be at least 8 characters",
-			})
+			utils.WriteRequestError(w, r, utils.NewValidationError("Password must be at least 8 characters.", nil))
 
 		case errors.Is(err, services.ErrUserAlreadyExists):
-			writeJSON(w, http.StatusConflict, map[string]string{
-				"error": "user already exists",
-			})
+			utils.WriteRequestError(w, r, utils.NewConflictError("An account with that email already exists."))
 
 		default:
-			writeJSON(w, http.StatusInternalServerError, map[string]string{
-				"error": "failed to create account",
-			})
+			utils.WriteRequestError(w, r, utils.NewDatabaseError(err, map[string]string{"operation": "register_user"}))
 		}
 
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, AuthResponse{
+	utils.WriteSuccess(w, http.StatusCreated, AuthResponse{
 		Message: "account created successfully",
 		User:    user,
 		Token:   token,
@@ -85,12 +80,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 // Login handles POST /api/auth/login.
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteRequestError(w, r, &utils.AppError{Category: utils.CategoryValidation, UserMsg: "Method not allowed.", StatusCode: http.StatusMethodNotAllowed})
+		return
+	}
+
 	var request AuthRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "invalid request body",
-		})
+		utils.WriteRequestError(w, r, utils.NewValidationError("Invalid request body.", nil))
 		return
 	}
 
@@ -102,34 +100,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidCredentials) {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{
-				"error": "invalid email or password",
-			})
+			utils.WriteRequestError(w, r, utils.NewAuthError("Invalid email or password.", http.StatusUnauthorized))
 			return
 		}
 
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "login failed",
-		})
+		utils.WriteRequestError(w, r, utils.NewDatabaseError(err, map[string]string{"operation": "login_user"}))
 		return
 	}
 
-	writeJSON(w, http.StatusOK, AuthResponse{
+	utils.WriteSuccess(w, http.StatusOK, AuthResponse{
 		Message: "login successful",
 		User:    user,
 		Token:   token,
 	})
-}
-
-func writeJSON(
-	w http.ResponseWriter,
-	status int,
-	data interface{},
-) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		return
-	}
 }

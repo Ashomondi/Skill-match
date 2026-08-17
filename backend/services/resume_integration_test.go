@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"skill-match/backend/clients"
-	"skill-match/backend/models"
 	"skill-match/backend/repositories"
 )
 
@@ -61,10 +60,10 @@ func TestResumeStorageIntegration(t *testing.T) {
 	}
 
 	userRepo := repositories.NewUserRepository(pool)
-	user, err := userRepo.Create(ctx, &models.User{
-		Email:    fmt.Sprintf("integration-%d@skillmatch.local", time.Now().UnixNano()),
-		Password: "integration-placeholder-hash",
-		FullName: "Integration Tester",
+	user, err := userRepo.Create(ctx, &repositories.User{
+		Email:        fmt.Sprintf("integration-%d@skillmatch.local", time.Now().UnixNano()),
+		PasswordHash: "integration-placeholder-hash",
+		FullName:     "Integration Tester",
 	})
 	if err != nil {
 		t.Fatalf("create user: %v", err)

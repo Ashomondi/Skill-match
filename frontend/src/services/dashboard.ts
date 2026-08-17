@@ -5,16 +5,18 @@ export interface RecentApplication { id: string; role: string; company: string; 
 export interface DashboardData { savedJobs: number; totalApplications: number; byStatus: Record<ApplicationStatus, number>; recentApplications: RecentApplication[]; }
 const statuses: ApplicationStatus[] = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 const emptyCounts = () => Object.fromEntries(statuses.map((status) => [status, 0])) as Record<ApplicationStatus, number>;
-const request = async (path: string) => { const token = localStorage.getItem('token'); const response = await fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error || body?.message || 'Unable to load dashboard data.'); return body; };
-const listFrom = (body: any): any[] => Array.isArray(body) ? body : body?.applications || body?.data || [];
+const request = async (path: string) => { const token = localStorage.getItem('token'); const response = await fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error?.message || body?.error || body?.message || 'Unable to load dashboard data.'); return body; };
+// The backend wraps success payloads in { data: ... }.
+const unwrap = (body: any): any => (body && typeof body === 'object' && 'data' in body ? body.data : body);
+const listFrom = (body: any): any[] => { const inner = unwrap(body); return Array.isArray(inner) ? inner : inner?.applications || inner?.data || []; };
 
 export const dashboardService = {
   async getDashboard(): Promise<DashboardData> {
     const [applicationsResult, savedResult] = await Promise.allSettled([request('/applications'), request('/saved-jobs')]);
     if (applicationsResult.status === 'rejected' && savedResult.status === 'rejected') throw applicationsResult.reason;
     const applications = applicationsResult.status === 'fulfilled' ? listFrom(applicationsResult.value) : [];
-    const savedBody = savedResult.status === 'fulfilled' ? savedResult.value : [];
-    const savedJobs = Array.isArray(savedBody) ? savedBody.length : Number(savedBody?.total ?? savedBody?.count ?? savedBody?.saved_jobs?.length ?? 0);
+    const savedList = savedResult.status === 'fulfilled' ? listFrom(savedResult.value) : [];
+    const savedJobs = savedList.length;
     const byStatus = emptyCounts();
     const normalized = applications.map((application: any) => {
       const status = String(application.status || 'saved').toLowerCase() as ApplicationStatus;

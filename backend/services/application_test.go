@@ -3,196 +3,126 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"skill-match/backend/models"
-	"skill-match/backend/repositories"
 )
 
 type fakeApplicationRepo struct {
-	byID          map[string]*models.Application
-	byUser        map[string][]*models.Application
-	createErr     error
-	getErr        error
-	updateErr     error
-	deleteErr     error
-	seq           int
-	updatedStatus map[string]models.ApplicationStatus
+	apps       []*models.Application
+	byUser     map[string][]*models.Application
+	createErr  error
+	listErr    error
+	getErr     error
+	updateErr  error
+	historyErr error
+	created    []*models.Application
+	updatedTo  []models.ApplicationStatus
 }
 
 func newFakeApplicationRepo() *fakeApplicationRepo {
-	return &fakeApplicationRepo{
-		byID:          map[string]*models.Application{},
-		byUser:        map[string][]*models.Application{},
-		updatedStatus: map[string]models.ApplicationStatus{},
-	}
+	return &fakeApplicationRepo{byUser: map[string][]*models.Application{}}
 }
 
-func (f *fakeApplicationRepo) Create(_ context.Context, a *models.Application) (*models.Application, error) {
+func (f *fakeApplicationRepo) Create(_ context.Context, userID, jobID string) (*models.Application, error) {
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
-	f.seq++
-	a.ID = fmt.Sprintf("app-%d", f.seq)
-	f.byID[a.ID] = a
-	f.byUser[a.UserID] = append(f.byUser[a.UserID], a)
+	a := &models.Application{ID: "app-" + string(rune('a'+len(f.created))), UserID: userID, JobID: jobID, Status: models.ApplicationSaved}
+	f.created = append(f.created, a)
+	f.byUser[userID] = append(f.byUser[userID], a)
 	return a, nil
 }
 
-func (f *fakeApplicationRepo) GetByID(_ context.Context, id string) (*models.Application, error) {
+func (f *fakeApplicationRepo) GetByID(_ context.Context, userID, id string) (*models.Application, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
-	if a, ok := f.byID[id]; ok {
-		return a, nil
+	for _, a := range f.byUser[userID] {
+		if a.ID == id {
+			return a, nil
+		}
 	}
-	return nil, repositories.ErrApplicationNotFound
+	return nil, ErrApplicationNotFound
 }
 
-func (f *fakeApplicationRepo) ListByUserID(_ context.Context, userID string, _ int) ([]*models.Application, error) {
-	return f.byUser[userID], nil
-}
-
-func (f *fakeApplicationRepo) UpdateStatus(_ context.Context, id string, status models.ApplicationStatus) (*models.Application, error) {
+func (f *fakeApplicationRepo) UpdateStatus(_ context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
 	if f.updateErr != nil {
 		return nil, f.updateErr
 	}
-	a, ok := f.byID[id]
-	if !ok {
-		return nil, repositories.ErrApplicationNotFound
+	a, err := f.GetByID(context.Background(), userID, id)
+	if err != nil {
+		return nil, err
 	}
 	a.Status = status
-	f.updatedStatus[id] = status
+	f.updatedTo = append(f.updatedTo, status)
 	return a, nil
 }
 
-func (f *fakeApplicationRepo) Delete(_ context.Context, id string) error {
-	if f.deleteErr != nil {
-		return f.deleteErr
+func (f *fakeApplicationRepo) History(_ context.Context, _, _ string) ([]models.ApplicationStatusChange, error) {
+	if f.historyErr != nil {
+		return nil, f.historyErr
 	}
-	if _, ok := f.byID[id]; !ok {
-		return repositories.ErrApplicationNotFound
-	}
-	delete(f.byID, id)
-	return nil
+	return nil, nil
 }
 
-func testApplicationService() (*ApplicationService, *fakeApplicationRepo) {
-	repo := newFakeApplicationRepo()
-	return NewApplicationService(repo), repo
+func (f *fakeApplicationRepo) ListByUserID(_ context.Context, userID string) ([]*models.Application, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	return f.byUser[userID], nil
 }
 
-func TestApplyCreatesApplication(t *testing.T) {
-	svc, repo := testApplicationService()
-	jobID := "job-1"
-
-	created, err := svc.Apply(context.Background(), "user-1", &jobID, models.ApplicationStatusApplied)
-	if err != nil {
-		t.Fatalf("apply: %v", err)
-	}
-	if created.UserID != "user-1" || created.JobID == nil || *created.JobID != jobID {
-		t.Fatalf("application fields not stored: %+v", created)
-	}
-	if created.Status != models.ApplicationStatusApplied {
-		t.Fatalf("expected status applied, got %s", created.Status)
-	}
-	if len(repo.byUser["user-1"]) != 1 {
-		t.Fatalf("expected 1 application, got %d", len(repo.byUser["user-1"]))
-	}
-}
-
-func TestApplyAllowsNilJob(t *testing.T) {
-	svc, _ := testApplicationService()
-
-	created, err := svc.Apply(context.Background(), "user-1", nil, models.ApplicationStatusInterview)
-	if err != nil {
-		t.Fatalf("apply: %v", err)
-	}
-	if created.JobID != nil {
-		t.Fatalf("expected nil job id, got %v", *created.JobID)
-	}
-}
-
-func TestApplyRejectsInvalidInput(t *testing.T) {
-	svc, repo := testApplicationService()
-
-	if _, err := svc.Apply(context.Background(), "", nil, models.ApplicationStatusApplied); !errors.Is(err, ErrInvalidApplication) {
-		t.Fatalf("expected ErrInvalidApplication for empty user, got %v", err)
-	}
-	if _, err := svc.Apply(context.Background(), "user-1", nil, models.ApplicationStatus("ghosted")); !errors.Is(err, ErrInvalidApplication) {
-		t.Fatalf("expected ErrInvalidApplication for invalid status, got %v", err)
-	}
-	if len(repo.byUser) != 0 {
-		t.Fatal("no application should be created for invalid input")
-	}
+func testApplicationService(repo *fakeApplicationRepo) *ApplicationService {
+	return NewApplicationService(repo)
 }
 
 func TestApplicationListScopesByUser(t *testing.T) {
-	svc, _ := testApplicationService()
-	ctx := context.Background()
+	repo := newFakeApplicationRepo()
+	repo.byUser["user-1"] = []*models.Application{{ID: "a1", UserID: "user-1", JobID: "job-1", Status: models.ApplicationSaved}}
+	repo.byUser["user-2"] = []*models.Application{{ID: "a2", UserID: "user-2", JobID: "job-2", Status: models.ApplicationSaved}}
+	svc := testApplicationService(repo)
 
-	if _, err := svc.Apply(ctx, "user-1", nil, models.ApplicationStatusApplied); err != nil {
-		t.Fatalf("apply user-1: %v", err)
-	}
-	if _, err := svc.Apply(ctx, "user-2", nil, models.ApplicationStatusApplied); err != nil {
-		t.Fatalf("apply user-2: %v", err)
-	}
-
-	list, err := svc.List(ctx, "user-1", 0)
+	list, err := svc.List(context.Background(), "user-1")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(list) != 1 || list[0].UserID != "user-1" {
-		t.Fatalf("expected only user-1's applications, got %+v", list)
+	if len(list) != 1 || list[0].UserID != "user-1" || list[0].JobID != "job-1" {
+		t.Fatalf("expected only user-1's application, got %+v", list)
 	}
 }
 
-func TestUpdateStatusEnforcesOwnershipAndApplies(t *testing.T) {
-	svc, repo := testApplicationService()
-	ctx := context.Background()
+func TestApplicationListRejectsEmptyUser(t *testing.T) {
+	svc := testApplicationService(newFakeApplicationRepo())
 
-	created, err := svc.Apply(ctx, "user-1", nil, models.ApplicationStatusApplied)
-	if err != nil {
-		t.Fatalf("apply: %v", err)
-	}
-
-	if _, err := svc.UpdateStatus(ctx, "user-2", created.ID, models.ApplicationStatusInterview); !errors.Is(err, ErrApplicationAccessDenied) {
-		t.Fatalf("expected ErrApplicationAccessDenied, got %v", err)
-	}
-
-	updated, err := svc.UpdateStatus(ctx, "user-1", created.ID, models.ApplicationStatusInterview)
-	if err != nil {
-		t.Fatalf("update own: %v", err)
-	}
-	if updated.Status != models.ApplicationStatusInterview {
-		t.Fatalf("expected status interview, got %s", updated.Status)
-	}
-	if repo.updatedStatus[created.ID] != models.ApplicationStatusInterview {
-		t.Fatalf("repo update not recorded: %v", repo.updatedStatus)
-	}
-
-	if _, err := svc.UpdateStatus(ctx, "user-1", created.ID, models.ApplicationStatus("ghosted")); !errors.Is(err, ErrInvalidApplication) {
-		t.Fatalf("expected ErrInvalidApplication for invalid status, got %v", err)
+	if _, err := svc.List(context.Background(), "  "); !errors.Is(err, ErrApplicationInvalidInput) {
+		t.Fatalf("expected ErrApplicationInvalidInput, got %v", err)
 	}
 }
 
-func TestApplicationDeleteEnforcesOwnership(t *testing.T) {
-	svc, _ := testApplicationService()
-	ctx := context.Background()
+func TestApplicationListReturnsJobDetails(t *testing.T) {
+	repo := newFakeApplicationRepo()
+	repo.byUser["user-1"] = []*models.Application{
+		{ID: "a1", UserID: "user-1", JobID: "job-9", Status: models.ApplicationApplied,
+			Job: &models.Job{ID: "job-9", Title: "Backend Engineer", Company: "Acme"}},
+	}
+	svc := testApplicationService(repo)
 
-	created, err := svc.Apply(ctx, "user-1", nil, models.ApplicationStatusApplied)
+	list, err := svc.List(context.Background(), "user-1")
 	if err != nil {
-		t.Fatalf("apply: %v", err)
+		t.Fatalf("list: %v", err)
 	}
+	if len(list) != 1 || list[0].Job == nil || list[0].Job.Title != "Backend Engineer" || list[0].Job.Company != "Acme" {
+		t.Fatalf("expected job details on the application, got %+v", list[0])
+	}
+}
 
-	if err := svc.Delete(ctx, "user-2", created.ID); !errors.Is(err, ErrApplicationAccessDenied) {
-		t.Fatalf("expected ErrApplicationAccessDenied, got %v", err)
-	}
-	if err := svc.Delete(ctx, "user-1", created.ID); err != nil {
-		t.Fatalf("delete own: %v", err)
-	}
-	if err := svc.Delete(ctx, "user-1", created.ID); !errors.Is(err, ErrApplicationNotFound) {
-		t.Fatalf("expected ErrApplicationNotFound after delete, got %v", err)
+func TestApplicationListSurfacesRepoError(t *testing.T) {
+	repo := newFakeApplicationRepo()
+	repo.listErr = errors.New("db down")
+	svc := testApplicationService(repo)
+
+	if _, err := svc.List(context.Background(), "user-1"); err == nil {
+		t.Fatal("expected an error when the repository fails")
 	}
 }

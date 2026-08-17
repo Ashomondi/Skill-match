@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"sort"
 	"strings"
 
@@ -19,10 +20,13 @@ import (
 //go:embed *.sql
 var migrationFS embed.FS
 
-// Apply runs every migration file that has not already been recorded in
+// Apply runs every up migration that has not already been recorded in
 // schema_migrations. It is safe to call on every startup: already-applied
 // migrations are skipped, and only pending ones execute. A failing migration
 // aborts with an error so the server never boots on a half-migrated schema.
+//
+// Down migrations (*.down.sql) are never applied automatically; they exist
+// for manual rollbacks.
 func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 	if pool == nil {
 		return errors.New("migrations: nil connection pool")
@@ -40,7 +44,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 		return err
 	}
 
-	files, err := fs.Glob(migrationFS, "*.sql")
+	files, err := fs.Glob(migrationFS, "*.up.sql")
 	if err != nil {
 		return fmt.Errorf("migrations: list embedded files: %w", err)
 	}
@@ -56,12 +60,14 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 			return fmt.Errorf("migrations: read %s: %w", file, err)
 		}
 		if strings.TrimSpace(string(body)) == "" {
-			return fmt.Errorf("migrations: %s is empty, refusing to run", file)
+			log.Printf("migrations: %s is empty, skipping", file)
+			continue
 		}
 
 		if err := applyOne(ctx, pool, file, string(body)); err != nil {
 			return fmt.Errorf("migrations: apply %s: %w", file, err)
 		}
+		log.Printf("migrations: applied %s", file)
 	}
 
 	return nil

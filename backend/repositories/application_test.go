@@ -4,82 +4,78 @@ package repositories
 
 import (
 	"context"
-	"errors"
 	"os"
 	"testing"
+	"time"
 
-	"skill-match/backend/clients"
-	"skill-match/backend/models"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Issue #66 — application persistence. Fake-free: runs against a real
+// Issue #72 — application list persistence. Fake-free: runs against a real
 // CockroachDB. Requires TEST_DATABASE_URL and the migrations applied.
 //
 //	go test -tags integration ./repositories -run TestApplication -v
 
-func TestApplicationCreateAndRetrieve(t *testing.T) {
+// insertTestApplicationJob seeds a minimal jobs row and returns its id,
+// cleaning up afterwards (CASCADE removes any applications referencing it).
+func insertTestApplicationJob(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var id string
+	err := pool.QueryRow(context.Background(),
+		`INSERT INTO jobs (external_id, title, company) VALUES ($1, 'Integration Role', 'Acme Corp') RETURNING id`,
+		"integration-job-"+time.Now().Format("150405"),
+	).Scan(&id)
+	if err != nil {
+		t.Fatalf("insert job: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM jobs WHERE id = $1`, id)
+	})
+	return id
+}
+
+func TestApplicationListByUserID(t *testing.T) {
 	pool := connectTestPool(t)
 	user := createTestUser(t, pool)
-	jobID := insertTestJob(t, pool)
+	jobID := insertTestApplicationJob(t, pool)
 	repo := NewApplicationRepository(pool)
 	ctx := context.Background()
 
-	created, err := repo.Create(ctx, &models.Application{
-		UserID: user.ID,
-		JobID:  &jobID,
-		Status: models.ApplicationStatusApplied,
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if created.ID == "" || created.UserID != user.ID || created.JobID == nil || *created.JobID != jobID {
-		t.Fatalf("application fields not persisted: %+v", created)
-	}
-	if created.AppliedAt.IsZero() {
-		t.Fatal("expected applied_at to be set")
+	if _, err := repo.Create(ctx, user.ID, jobID); err != nil {
+		t.Fatalf("create application: %v", err)
 	}
 
-	fetched, err := repo.GetByID(ctx, created.ID)
+	list, err := repo.ListByUserID(ctx, user.ID)
 	if err != nil {
-		t.Fatalf("get by id: %v", err)
+		t.Fatalf("list: %v", err)
 	}
-	if fetched.Status != models.ApplicationStatusApplied {
-		t.Fatalf("expected status applied, got %s", fetched.Status)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 application, got %d", len(list))
+	}
+	if list[0].UserID != user.ID || list[0].JobID != jobID {
+		t.Fatalf("unexpected application: %+v", list[0])
+	}
+	if list[0].Job == nil || list[0].Job.Title != "Integration Role" || list[0].Job.Company != "Acme Corp" {
+		t.Fatalf("expected job details to be joined, got %+v", list[0].Job)
 	}
 }
 
-func TestApplicationAllowsNilJob(t *testing.T) {
-	pool := connectTestPool(t)
-	user := createTestUser(t, pool)
-	repo := NewApplicationRepository(pool)
-	ctx := context.Background()
-
-	created, err := repo.Create(ctx, &models.Application{
-		UserID: user.ID,
-		Status: models.ApplicationStatusInterview,
-	})
-	if err != nil {
-		t.Fatalf("create without job: %v", err)
-	}
-	if created.JobID != nil {
-		t.Fatalf("expected nil job id, got %v", *created.JobID)
-	}
-}
-
-func TestApplicationUserIsolation(t *testing.T) {
+func TestApplicationListUserIsolation(t *testing.T) {
 	pool := connectTestPool(t)
 	userA := createTestUser(t, pool)
 	userB := createTestUser(t, pool)
+	jobID := insertTestApplicationJob(t, pool)
 	repo := NewApplicationRepository(pool)
 	ctx := context.Background()
 
-	for _, u := range []*models.User{userA, userB} {
-		if _, err := repo.Create(ctx, &models.Application{UserID: u.ID, Status: models.ApplicationStatusApplied}); err != nil {
-			t.Fatalf("create for %s: %v", u.ID, err)
-		}
+	if _, err := repo.Create(ctx, userA.ID, jobID); err != nil {
+		t.Fatalf("create for A: %v", err)
+	}
+	if _, err := repo.Create(ctx, userB.ID, jobID); err != nil {
+		t.Fatalf("create for B: %v", err)
 	}
 
-	listA, err := repo.ListByUserID(ctx, userA.ID, 0)
+	listA, err := repo.ListByUserID(ctx, userA.ID)
 	if err != nil {
 		t.Fatalf("list A: %v", err)
 	}
@@ -88,67 +84,34 @@ func TestApplicationUserIsolation(t *testing.T) {
 	}
 }
 
-func TestApplicationUpdateStatus(t *testing.T) {
+func TestApplicationListEmpty(t *testing.T) {
 	pool := connectTestPool(t)
 	user := createTestUser(t, pool)
 	repo := NewApplicationRepository(pool)
-	ctx := context.Background()
 
-	created, err := repo.Create(ctx, &models.Application{UserID: user.ID, Status: models.ApplicationStatusApplied})
+	list, err := repo.ListByUserID(context.Background(), user.ID)
 	if err != nil {
-		t.Fatalf("create: %v", err)
+		t.Fatalf("list: %v", err)
 	}
-
-	updated, err := repo.UpdateStatus(ctx, created.ID, models.ApplicationStatusOffer)
-	if err != nil {
-		t.Fatalf("update status: %v", err)
-	}
-	if updated.Status != models.ApplicationStatusOffer {
-		t.Fatalf("expected status offer, got %s", updated.Status)
-	}
-	if !updated.UpdatedAt.After(updated.CreatedAt) {
-		t.Fatalf("expected updated_at to move forward: %v -> %v", updated.CreatedAt, updated.UpdatedAt)
+	if len(list) != 0 {
+		t.Fatalf("expected no applications, got %d", len(list))
 	}
 }
 
-func TestApplicationDelete(t *testing.T) {
-	pool := connectTestPool(t)
-	user := createTestUser(t, pool)
-	repo := NewApplicationRepository(pool)
-	ctx := context.Background()
-
-	created, err := repo.Create(ctx, &models.Application{UserID: user.ID, Status: models.ApplicationStatusApplied})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-
-	if err := repo.Delete(ctx, created.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
-	if _, err := repo.GetByID(ctx, created.ID); !errors.Is(err, ErrApplicationNotFound) {
-		t.Fatalf("expected ErrApplicationNotFound after delete, got %v", err)
-	}
-}
-
-func TestApplicationDatabaseFailure(t *testing.T) {
+func TestApplicationListDatabaseFailure(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("TEST_DATABASE_URL not set; skipping integration test")
 	}
 
-	pool, err := clients.NewPool(context.Background(), dsn, clients.PoolOptions{})
+	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
 	pool.Close() // simulate an unavailable database
 
 	repo := NewApplicationRepository(pool)
-	ctx := context.Background()
-
-	if _, err := repo.Create(ctx, &models.Application{UserID: "user-x", Status: models.ApplicationStatusApplied}); err == nil {
-		t.Fatal("expected an error when the database is unavailable")
-	}
-	if _, err := repo.ListByUserID(ctx, "user-x", 0); err == nil {
+	if _, err := repo.ListByUserID(context.Background(), "user-x"); err == nil {
 		t.Fatal("expected an error when the database is unavailable")
 	}
 }

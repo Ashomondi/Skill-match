@@ -49,8 +49,8 @@ func toResumeResponse(r *models.Resume, url string) resumeResponse {
 // Create handles POST /api/resumes — multipart upload with a "resume" file
 // part and an optional "replaceId" field.
 func (h *ResumeHandler) Create(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.UserIDFromContext(r.Context())
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
@@ -92,8 +92,8 @@ func (h *ResumeHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // List handles GET /api/resumes.
 func (h *ResumeHandler) List(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.UserIDFromContext(r.Context())
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
@@ -114,8 +114,8 @@ func (h *ResumeHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // Get handles GET /api/resumes/{id} and includes a time-limited download URL.
 func (h *ResumeHandler) Get(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.UserIDFromContext(r.Context())
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
@@ -131,8 +131,8 @@ func (h *ResumeHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 // Delete handles DELETE /api/resumes/{id}.
 func (h *ResumeHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.UserIDFromContext(r.Context())
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
