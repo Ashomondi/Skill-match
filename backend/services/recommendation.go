@@ -29,7 +29,12 @@ type MatchingContext struct {
 	Limit      int      `json:"limit"`
 }
 
-func (s *RecommendationService) RecommendForUser(ctx context.Context, requestingUserID string, targetUserID string, limit int) ([]*repositories.MatchScore, error) {
+func (s *RecommendationService) RecommendForUser(
+	ctx context.Context,
+	requestingUserID string,
+	targetUserID string,
+	limit int,
+) ([]*repositories.MatchScore, error) {
 	if requestingUserID != targetUserID {
 		return nil, fmt.Errorf("services: unauthorized access to user profile data")
 	}
