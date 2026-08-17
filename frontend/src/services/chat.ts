@@ -16,6 +16,21 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface ChatSendOptions {
+  resumeId?: string;
+}
+
+/**
+ * MemoryContext describes which persistent-memory sources the assistant is
+ * able to draw on for the current turn. It is intentionally coarse-grained:
+ * the UI shows a label per source, never any of the underlying data.
+ */
+export interface MemoryContext {
+  profile: boolean;
+  resume: boolean;
+  conversation: boolean;
+}
+
 const token = () => localStorage.getItem('token');
 
 const readConversations = (): Conversation[] => {
@@ -35,6 +50,18 @@ const titleFrom = (content: string) => {
   const title = content.replace(/\s+/g, ' ').trim();
   return title.length > 42 ? `${title.slice(0, 42)}…` : title || 'New conversation';
 };
+
+/** Records whether the user has at least one resume on file (best-effort). */
+export const setResumePresent = (present: boolean) => {
+  localStorage.setItem('skillmatch-resume-present', present ? '1' : '0');
+};
+
+/** Builds a memory-context snapshot from what is locally knowable. */
+export const getMemoryContext = (historyLength: number): MemoryContext => ({
+  profile: !!localStorage.getItem('user'),
+  resume: localStorage.getItem('skillmatch-resume-present') === '1',
+  conversation: historyLength > 0,
+});
 
 export const chatService = {
   list(): Conversation[] {
@@ -64,7 +91,7 @@ export const chatService = {
     return next;
   },
 
-  async send(message: string, history: ChatMessage[]): Promise<string> {
+  async send(message: string, history: ChatMessage[], options: ChatSendOptions = {}): Promise<string> {
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
@@ -73,6 +100,7 @@ export const chatService = {
       },
       body: JSON.stringify({
         message,
+        resumeId: options.resumeId,
         history: history.map(({ role, content }) => ({ role, content })),
       }),
     });
