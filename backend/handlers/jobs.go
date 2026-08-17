@@ -14,6 +14,12 @@ type JobsHandler struct {
 	jobService *services.JobService
 }
 
+type MatchJobsRequest struct {
+	Skills   []string `json:"skills"`
+	MinScore float64  `json:"min_score"`
+	Limit    int      `json:"limit"`
+}
+
 func NewJobsHandler(jobService *services.JobService) *JobsHandler {
 	return &JobsHandler{
 		jobService: jobService,
@@ -72,5 +78,43 @@ func (h *JobsHandler) Search(w http.ResponseWriter, r *http.Request) {
 			"limit":  filter.Limit,
 			"offset": filter.Offset,
 		},
+	})
+}
+
+func (h *JobsHandler) Match(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	var req MatchJobsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid JSON body"})
+		return
+	}
+
+	filter := repositories.SemanticMatchFilter{
+		UserSkills: req.Skills,
+		MinScore:   req.MinScore,
+		Limit:      req.Limit,
+	}
+
+	matches, err := h.jobService.MatchJobs(r.Context(), filter)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to match jobs"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"matches": matches,
+		"total":   len(matches),
 	})
 }
