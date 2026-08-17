@@ -30,6 +30,7 @@ type Application struct {
 	ID        string                    `json:"id"`
 	UserID    string                    `json:"user_id"`
 	JobID     string                    `json:"job_id"`
+	Job       *Job                      `json:"job,omitempty"`
 	Status    ApplicationStatus         `json:"status"`
 	CreatedAt time.Time                 `json:"created_at"`
 	UpdatedAt time.Time                 `json:"updated_at"`

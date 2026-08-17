@@ -22,11 +22,21 @@ type ApplicationRepository interface {
 	GetByID(context.Context, string, string) (*models.Application, error)
 	UpdateStatus(context.Context, string, string, models.ApplicationStatus) (*models.Application, error)
 	History(context.Context, string, string) ([]models.ApplicationStatusChange, error)
+	ListByUserID(context.Context, string) ([]*models.Application, error)
 }
 type ApplicationService struct{ repo ApplicationRepository }
 
 func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
+}
+
+// List returns the authenticated user's applications, most recently updated
+// first, enriched with job details.
+func (s *ApplicationService) List(ctx context.Context, userID string) ([]*models.Application, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, ErrApplicationInvalidInput
+	}
+	return s.repo.ListByUserID(ctx, userID)
 }
 func (s *ApplicationService) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
 	if strings.TrimSpace(userID) == "" || uuid.Validate(jobID) != nil {

@@ -43,3 +43,8 @@ func RegisterSavedJobs(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *ut
 	mux.Handle("GET /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
 	mux.Handle("DELETE /api/saved-jobs/{job_id}", middleware.Auth(jwt)(http.HandlerFunc(h.Remove)))
 }
+
+// RegisterApplications exposes the application endpoints, all protected by auth.
+func RegisterApplications(mux *http.ServeMux, h *handlers.ApplicationHandler, jwt *utils.JWTManager) {
+	mux.Handle("GET /api/applications", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
+}
