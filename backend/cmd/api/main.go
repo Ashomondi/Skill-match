@@ -53,6 +53,10 @@ func main() {
 		jobRepo := repositories.NewJobRepository(pool)
 		savedJobs := handlers.NewSavedJobsHandler(services.NewSavedJobService(repositories.NewSavedJobRepository(pool)))
 		routes.RegisterSavedJobs(mux, savedJobs, jwtManager)
+		routes.RegisterApplications(mux,
+			handlers.NewApplicationHandler(services.NewApplicationService(repositories.NewApplicationRepository(pool))),
+			jwtManager,
+		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
 
 		ingested, skipped, err := jobService.IngestJobs(ctx)

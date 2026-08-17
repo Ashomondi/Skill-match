@@ -110,3 +110,56 @@ func (r *ApplicationRepository) History(ctx context.Context, userID, id string) 
 	}
 	return out, nil
 }
+
+// ListByUserID returns a user's applications, most recently updated first,
+// each enriched with its job's title and company. A LEFT JOIN keeps the row
+// even if the job reference were ever missing.
+func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string) ([]*models.Application, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, ErrInvalidApplicationInput
+	}
+
+	const q = `
+		SELECT a.id, a.user_id, a.job_id, a.status, a.created_at, a.updated_at,
+		       j.id, j.title, j.company
+		FROM applications a
+		LEFT JOIN jobs j ON j.id = a.job_id
+		WHERE a.user_id = $1
+		ORDER BY a.updated_at DESC
+		LIMIT 100`
+
+	rows, err := r.db.Query(ctx, q, userID)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: list applications: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*models.Application
+	for rows.Next() {
+		a := &models.Application{}
+		var jobID, jobTitle, jobCompany *string
+		if err := rows.Scan(&a.ID, &a.UserID, &a.JobID, &a.Status, &a.CreatedAt, &a.UpdatedAt,
+			&jobID, &jobTitle, &jobCompany); err != nil {
+			return nil, fmt.Errorf("repositories: scan application row: %w", err)
+		}
+		if jobID != nil {
+			a.Job = &models.Job{
+				ID:      *jobID,
+				Title:   valueOr(jobTitle, ""),
+				Company: valueOr(jobCompany, ""),
+			}
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repositories: iterate applications: %w", err)
+	}
+	return out, nil
+}
+
+func valueOr(p *string, fallback string) string {
+	if p == nil {
+		return fallback
+	}
+	return *p
+}
