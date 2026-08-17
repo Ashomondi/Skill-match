@@ -25,7 +25,6 @@ type MemoryService struct {
 func NewMemoryService(
 	conversations *repositories.ConversationRepository,
 ) *MemoryService {
-
 	return &MemoryService{
 		conversations: conversations,
 	}
@@ -36,7 +35,6 @@ func (s *MemoryService) StoreConversation(
 	ctx context.Context,
 	conversation *models.Conversation,
 ) (*models.Conversation, error) {
-
 	if conversation == nil {
 		return nil, fmt.Errorf(
 			"%w: conversation is required",
@@ -76,7 +74,6 @@ func (s *MemoryService) StoreConversation(
 		ctx,
 		conversation,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%w: failed to store conversation: %v",
@@ -93,7 +90,6 @@ func (s *MemoryService) StoreConversationBatch(
 	ctx context.Context,
 	conversations []*models.Conversation,
 ) ([]*models.Conversation, error) {
-
 	if len(conversations) == 0 {
 		return nil, fmt.Errorf(
 			"%w: conversations are required",
@@ -142,7 +138,6 @@ func (s *MemoryService) StoreConversationBatch(
 		ctx,
 		conversations,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%w: failed to store conversation batch: %v",
@@ -160,7 +155,6 @@ func (s *MemoryService) RetrieveMemory(
 	userID string,
 	limit int,
 ) ([]*models.Conversation, error) {
-
 	if strings.TrimSpace(userID) == "" {
 		return nil, fmt.Errorf(
 			"%w: user ID is required",
@@ -180,7 +174,6 @@ func (s *MemoryService) RetrieveMemory(
 		userID,
 		limit,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"%w: failed to retrieve memory: %v",
@@ -197,7 +190,6 @@ func (s *MemoryService) DeleteMemory(
 	ctx context.Context,
 	userID string,
 ) error {
-
 	if strings.TrimSpace(userID) == "" {
 		return fmt.Errorf(
 			"%w: user ID is required",
