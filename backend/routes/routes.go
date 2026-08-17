@@ -54,3 +54,8 @@ func RegisterSavedJobsRoutes(mux *http.ServeMux, h *handlers.SavedJobsHandler) {
 	mux.HandleFunc("/api/saved-jobs", h.HandleSavedJobs)
 	mux.HandleFunc("/api/saved-jobs/", h.HandleDeleteSavedJob)
 }
+
+func RegisterApplicationRoutes(mux *http.ServeMux, h *handlers.ApplicationHandler) {
+	mux.HandleFunc("/api/applications", h.HandleCollection)
+	mux.HandleFunc("/api/applications/", h.HandleResource)
+}
