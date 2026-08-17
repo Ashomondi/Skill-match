@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
-
 	"skill-match/backend/models"
+	"github.com/google/uuid"
 	"skill-match/backend/repositories"
 	"skill-match/backend/utils"
 )
@@ -51,6 +51,7 @@ func (s *AuthService) Register(
 	password string,
 	fullName string,
 ) (*models.User, string, error) {
+
 
 	email = strings.ToLower(strings.TrimSpace(email))
 
@@ -133,7 +134,11 @@ func (s *AuthService) Login(
 		return nil, "", ErrInvalidCredentials
 	}
 
-	token, err := s.jwtManager.GenerateToken(user.ID, user.Email)
+	token, err := s.jwtManager.GenerateToken(
+		user.ID,
+		user.Email,
+	)
+
 	if err != nil {
 		return nil, "", err
 	}

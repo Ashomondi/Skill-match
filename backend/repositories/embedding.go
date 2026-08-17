@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
-
 	"skill-match/backend/models"
 )
 
@@ -95,7 +94,24 @@ func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []flo
 		LIMIT $4`, embeddingColumns)
 
 	qv := pgvector.NewVector(queryVector)
-	rows, err := r.db.Query(ctx, q, qv, string(sourceType), userID, k)
+	args := []any{qv}
+	filters := make([]string, 0, 2)
+	if sourceType != "" {
+		args = append(args, string(sourceType))
+		filters = append(filters, fmt.Sprintf("source_type = $%d", len(args)))
+	}
+	if userID != "" {
+		args = append(args, userID)
+		filters = append(filters, fmt.Sprintf("user_id = $%d", len(args)))
+	}
+	q := fmt.Sprintf("SELECT %s, vector <=> $1 AS distance FROM embeddings", embeddingColumns)
+	if len(filters) > 0 {
+		q += " WHERE " + strings.Join(filters, " AND ")
+	}
+	args = append(args, k)
+	q += fmt.Sprintf(" ORDER BY vector <=> $1 LIMIT $%d", len(args))
+
+	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("repositories: find similar embeddings: %w", err)
 	}
@@ -113,6 +129,24 @@ func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []flo
 		return nil, fmt.Errorf("repositories: find similar embeddings: %w", err)
 	}
 	return out, nil
+}
+
+// FindSimilarJobs searches job embeddings without exposing embedding storage
+// details to the recommendation service.
+func (r *EmbeddingRepository) FindSimilarJobs(ctx context.Context, queryVector []float32, k int) ([]SimilarJob, error) {
+	matches, err := r.FindSimilar(ctx, queryVector, EmbeddingSourceJob, "", k)
+	if err != nil {
+		return nil, err
+	}
+
+	jobs := make([]SimilarJob, 0, len(matches))
+	for _, match := range matches {
+		jobs = append(jobs, SimilarJob{
+			JobID:    match.SourceID,
+			Distance: match.Distance,
+		})
+	}
+	return jobs, nil
 }
 
 // DeleteBySource removes the embedding for a specific source row, e.g.

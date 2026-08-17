@@ -66,3 +66,19 @@ func jwtExpiry() time.Duration {
 	}
 	return duration
 }
+
+func mcpEndpoint() string {
+	return getEnv("MCP_ENDPOINT", "https://cockroachlabs.cloud/mcp")
+}
+
+func mcpAPIKey() string {
+	return getEnv("MCP_API_KEY", "")
+}
+
+func mcpClusterID() string {
+	return getEnv("MCP_CLUSTER_ID", "")
+}
+
+func bedrockEmbedModelID() string {
+	return getEnv("BEDROCK_EMBED_MODEL_ID", "")
+}

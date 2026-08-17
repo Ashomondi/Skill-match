@@ -9,6 +9,7 @@ import (
 	"skill-match/backend/clients"
 	"skill-match/backend/handlers"
 	"skill-match/backend/middleware"
+	"skill-match/backend/utils"
 )
 
 type RegisterFunc func(mux *http.ServeMux)
@@ -19,28 +20,8 @@ func RegisterAll(mux *http.ServeMux, registrars ...RegisterFunc) {
 	}
 }
 
-// RegisterHealth exposes GET /health. When a CockroachDB pool is provided it
-// is pinged; a missing or unreachable database reports 503 (degraded).
-func RegisterHealth(mux *http.ServeMux, pool *pgxpool.Pool) {
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		if pool == nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"degraded","database":"unavailable"}`))
-			return
-		}
-
-		if err := clients.HealthCheck(r.Context(), pool); err != nil {
-			log.Printf("health check failed: %v", err)
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"degraded","database":"unavailable"}`))
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","database":"ok"}`))
-	})
+func RegisterHealth(mux *http.ServeMux, healthHandler *handlers.HealthHandler) {
+	mux.HandleFunc("GET /health", healthHandler.Health)
 }
 
 // RegisterAuth exposes the public authentication endpoints.
@@ -49,10 +30,24 @@ func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {
 	mux.HandleFunc("POST /api/auth/login", h.Login)
 }
 
-// RegisterResumes exposes the resume endpoints, all protected by auth.
-func RegisterResumes(mux *http.ServeMux, h *handlers.ResumeHandler, auth middleware.Middleware) {
-	mux.Handle("GET /api/resumes", auth(http.HandlerFunc(h.List)))
-	mux.Handle("POST /api/resumes", auth(http.HandlerFunc(h.Create)))
-	mux.Handle("GET /api/resumes/{id}", auth(http.HandlerFunc(h.Get)))
-	mux.Handle("DELETE /api/resumes/{id}", auth(http.HandlerFunc(h.Delete)))
+func RegisterResume(mux *http.ServeMux, h *handlers.ResumeHandler) {
+	mux.HandleFunc("POST /api/resumes", h.Upload)
+	mux.HandleFunc("PUT /api/resumes/{id}", h.Update)
+	mux.HandleFunc("DELETE /api/resumes/{id}", h.Delete)
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
+	mux.HandleFunc("POST /api/chat", h.Chat)
+}
+
+func RegisterSavedJobs(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *utils.JWTManager) {
+	mux.Handle("POST /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.Save)))
+	mux.Handle("GET /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
+	mux.Handle("DELETE /api/saved-jobs/{job_id}", middleware.Auth(jwt)(http.HandlerFunc(h.Remove)))
 }

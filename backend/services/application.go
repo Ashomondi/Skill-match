@@ -3,106 +3,92 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
-
+	"github.com/google/uuid"
 	"skill-match/backend/models"
 	"skill-match/backend/repositories"
+	"strings"
 )
 
 var (
-	ErrApplicationNotFound     = errors.New("application not found")
-	ErrApplicationAccessDenied = errors.New("application access denied")
-	ErrInvalidApplication      = errors.New("invalid application")
+	ErrApplicationInvalidInput      = errors.New("services: invalid application input")
+	ErrApplicationInvalidStatus     = errors.New("services: invalid application status")
+	ErrApplicationInvalidTransition = errors.New("services: invalid application status transition")
+	ErrApplicationNotFound          = errors.New("services: application not found")
+	ErrApplicationDuplicate         = errors.New("services: application already exists")
 )
 
-// ApplicationRepository defines the persistence operations required by the
-// application service. repositories.ApplicationRepository satisfies it.
 type ApplicationRepository interface {
-	Create(ctx context.Context, a *models.Application) (*models.Application, error)
-	GetByID(ctx context.Context, id string) (*models.Application, error)
-	ListByUserID(ctx context.Context, userID string, limit int) ([]*models.Application, error)
-	UpdateStatus(ctx context.Context, id string, status models.ApplicationStatus) (*models.Application, error)
-	Delete(ctx context.Context, id string) error
+	Create(context.Context, string, string) (*models.Application, error)
+	GetByID(context.Context, string, string) (*models.Application, error)
+	UpdateStatus(context.Context, string, string, models.ApplicationStatus) (*models.Application, error)
+	History(context.Context, string, string) ([]models.ApplicationStatusChange, error)
 }
-
-// ApplicationService coordinates application tracking. Every operation is
-// scoped to (and ownership-checked against) the authenticated user.
-type ApplicationService struct {
-	repo ApplicationRepository
-}
+type ApplicationService struct{ repo ApplicationRepository }
 
 func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-// Apply creates an application for a user, optionally tied to a job.
-func (s *ApplicationService) Apply(ctx context.Context, userID string, jobID *string, status models.ApplicationStatus) (*models.Application, error) {
-	if userID == "" {
-		return nil, fmt.Errorf("%w: user is required", ErrInvalidApplication)
+func (s *ApplicationService) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
+	if strings.TrimSpace(userID) == "" || uuid.Validate(jobID) != nil {
+		return nil, ErrApplicationInvalidInput
 	}
-	if !status.Valid() {
-		return nil, fmt.Errorf("%w: invalid application status", ErrInvalidApplication)
+	application, err := s.repo.Create(ctx, userID, jobID)
+	if errors.Is(err, repositories.ErrApplicationDuplicate) {
+		return nil, ErrApplicationDuplicate
 	}
-
-	created, err := s.repo.Create(ctx, &models.Application{
-		UserID: userID,
-		JobID:  jobID,
-		Status: status,
-	})
-	if err != nil {
-		if errors.Is(err, repositories.ErrInvalidApplicationInput) {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidApplication, err)
-		}
-		return nil, err
+	if errors.Is(err, repositories.ErrJobNotFound) {
+		return nil, ErrApplicationNotFound
 	}
-	return created, nil
+	return application, err
 }
-
-// List returns the authenticated user's applications, most recently updated
-// first.
-func (s *ApplicationService) List(ctx context.Context, userID string, limit int) ([]*models.Application, error) {
-	return s.repo.ListByUserID(ctx, userID, limit)
+func (s *ApplicationService) Get(ctx context.Context, userID, id string) (*models.Application, error) {
+	if uuid.Validate(id) != nil || strings.TrimSpace(userID) == "" {
+		return nil, ErrApplicationNotFound
+	}
+	a, e := s.repo.GetByID(ctx, userID, id)
+	if errors.Is(e, repositories.ErrApplicationNotFound) {
+		return nil, ErrApplicationNotFound
+	}
+	return a, e
 }
-
-// UpdateStatus transitions an application the user owns.
 func (s *ApplicationService) UpdateStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
 	if !status.Valid() {
-		return nil, fmt.Errorf("%w: invalid application status", ErrInvalidApplication)
+		return nil, ErrApplicationInvalidStatus
 	}
-
-	a, err := s.getOwned(ctx, userID, id)
-	if err != nil {
-		return nil, err
+	a, e := s.Get(ctx, userID, id)
+	if e != nil {
+		return nil, e
 	}
-
-	updated, err := s.repo.UpdateStatus(ctx, a.ID, status)
-	if err != nil {
-		return nil, err
+	if !allowedTransition(a.Status, status) {
+		return nil, ErrApplicationInvalidTransition
 	}
-	return updated, nil
+	updated, err := s.repo.UpdateStatus(ctx, userID, id, status)
+	if errors.Is(err, repositories.ErrApplicationNotFound) {
+		return nil, ErrApplicationNotFound
+	}
+	return updated, err
 }
-
-// Delete removes an application the user owns.
-func (s *ApplicationService) Delete(ctx context.Context, userID, id string) error {
-	a, err := s.getOwned(ctx, userID, id)
-	if err != nil {
-		return err
+func (s *ApplicationService) GetHistory(ctx context.Context, userID, id string) ([]models.ApplicationStatusChange, error) {
+	if strings.TrimSpace(userID) == "" || uuid.Validate(id) != nil {
+		return nil, ErrApplicationNotFound
 	}
-
-	return s.repo.Delete(ctx, a.ID)
+	history, err := s.repo.History(ctx, userID, id)
+	if errors.Is(err, repositories.ErrApplicationNotFound) {
+		return nil, ErrApplicationNotFound
+	}
+	return history, err
 }
-
-// getOwned fetches an application and enforces that it belongs to userID.
-func (s *ApplicationService) getOwned(ctx context.Context, userID, id string) (*models.Application, error) {
-	a, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, repositories.ErrApplicationNotFound) {
-			return nil, ErrApplicationNotFound
-		}
-		return nil, err
+func allowedTransition(from, to models.ApplicationStatus) bool {
+	switch from {
+	case models.ApplicationSaved:
+		return to == models.ApplicationApplied || to == models.ApplicationWithdrawn
+	case models.ApplicationApplied:
+		return to == models.ApplicationScreening || to == models.ApplicationInterview || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
+	case models.ApplicationScreening:
+		return to == models.ApplicationInterview || to == models.ApplicationOffer || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
+	case models.ApplicationInterview:
+		return to == models.ApplicationOffer || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
 	}
-	if a.UserID != userID {
-		return nil, ErrApplicationAccessDenied
-	}
-	return a, nil
+	return false
 }
