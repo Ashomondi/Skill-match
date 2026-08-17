@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	ErrAIInvalidInput = errors.New("invalid AI input")
-	ErrAIService      = errors.New("AI service error")
+	ErrAIInvalidInput     = errors.New("invalid AI input")
+	ErrAIService          = errors.New("AI service error")
 )
 
 type AIService struct {
