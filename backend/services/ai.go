@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ErrAIInvalidInput     = errors.New("invalid AI input")
-	ErrAIService          = errors.New("AI service error")
+	ErrAIInvalidInput = errors.New("invalid AI input")
+	ErrAIService      = errors.New("AI service error")
 )
 
 type AIService struct {
@@ -72,8 +72,7 @@ func (s *AIService) GenerateResponse(
 		return nil, utils.NewDatabaseError(err, map[string]string{"operation": "list_conversations", "resource": "conversation", "user_id": input.UserID})
 	}
 
-	// Build the initial prompt using the user's message
-	// and previous conversation history.
+	// Build prompt using user message and conversation history.
 	prompt := buildChatPrompt(
 		input.Message,
 		history,
@@ -101,13 +100,12 @@ func (s *AIService) GenerateResponse(
 			return nil, utils.NewNotFoundError("Resume not found.")
 		}
 
-		// Prevent a user from using another user's resume
-		// as AI context.
+		// Prevent user from using another user's resume as context.
 		if resume.UserID != input.UserID {
 			return nil, ErrResumeUnauthorized
 		}
 
-		// Only include extracted resume text when it exists.
+		// Only include extracted text when available.
 		if resume.ParsedText != nil &&
 			strings.TrimSpace(*resume.ParsedText) != "" {
 
@@ -116,7 +114,7 @@ func (s *AIService) GenerateResponse(
 		}
 	}
 
-	// Send the complete context to Amazon Bedrock.
+	// Send context to Amazon Bedrock.
 	response, err := s.bedrock.GenerateResponse(ctx, prompt)
 	if err != nil {
 		return nil, utils.NewUpstreamError(clients.ClassifyBedrockError(err), err, map[string]string{
@@ -135,4 +133,14 @@ func (s *AIService) GenerateResponse(
 	return &AIResponse{
 		Message: response,
 	}, nil
+}
+
+func validateAIRequest(req AIRequest) error {
+	if strings.TrimSpace(req.UserID) == "" {
+		return fmt.Errorf("%w: user ID is required", ErrAIInvalidInput)
+	}
+	if strings.TrimSpace(req.Message) == "" {
+		return fmt.Errorf("%w: message is required", ErrAIInvalidInput)
+	}
+	return nil
 }

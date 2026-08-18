@@ -28,7 +28,12 @@ func (f *fakeApplicationRepo) Create(_ context.Context, userID, jobID string) (*
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
-	a := &models.Application{ID: "app-" + string(rune('a'+len(f.created))), UserID: userID, JobID: jobID, Status: models.ApplicationSaved}
+	a := &models.Application{
+		ID:     "app-" + string(rune('a'+len(f.created))),
+		UserID: userID,
+		JobID:  jobID,
+		Status: models.ApplicationSaved,
+	}
 	f.created = append(f.created, a)
 	f.byUser[userID] = append(f.byUser[userID], a)
 	return a, nil
@@ -103,8 +108,13 @@ func TestApplicationListRejectsEmptyUser(t *testing.T) {
 func TestApplicationListReturnsJobDetails(t *testing.T) {
 	repo := newFakeApplicationRepo()
 	repo.byUser["user-1"] = []*models.Application{
-		{ID: "a1", UserID: "user-1", JobID: "job-9", Status: models.ApplicationApplied,
-			Job: &models.Job{ID: "job-9", Title: "Backend Engineer", Company: "Acme"}},
+		{
+			ID:     "a1",
+			UserID: "user-1",
+			JobID:  "job-9",
+			Status: models.ApplicationApplied,
+			Job:    &models.Job{ID: "job-9", Title: "Backend Engineer", Company: "Acme"},
+		},
 	}
 	svc := testApplicationService(repo)
 
