@@ -30,7 +30,7 @@ export const SavedJobs: React.FC = () => {
     setRemovingId(savedJob.id);
     setError(null);
     try {
-      await savedJobsService.remove(savedJob.id);
+      await savedJobsService.remove(savedJob.jobId);
       setJobs((current) => current.filter((job) => job.id !== savedJob.id));
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : 'The saved job could not be removed.');
