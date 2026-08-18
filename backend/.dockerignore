@@ -1,0 +1,7 @@
+.git
+.gitignore
+Dockerfile
+.env
+.env.local
+coverage.out
+tmp_s3check

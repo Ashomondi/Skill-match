@@ -122,11 +122,43 @@ export TEST_S3_SECRET_KEY='minioadmin123'
 go test -tags integration ./...
 ```
 
+## Deployment (Docker, no compose required)
+
+The stack runs with plain `docker` commands — CockroachDB (memory layer),
+MinIO (resume storage), the Go API, and the web UI (nginx serving the built
+frontend and proxying `/api` to the API). The API applies schema migrations on
+startup; the MinIO bucket `initone` is created automatically.
+
+```sh
+# bring everything up (builds both images on first run)
+./deploy/docker-up.sh
+
+# stop + remove the app containers (keep the databases)
+./deploy/docker-down.sh
+
+# stop + also wipe the databases/volumes
+./deploy/docker-down.sh -v
+```
+
+Environment overrides: `JWT_SECRET`, `AWS_REGION` (used for S3 signing). Set
+the optional Bedrock/MCP vars in `deploy/docker-up.sh` (or your deployment
+environment) to enable chat and the MCP memory integration.
+
+To deploy to AWS:
+
+- Push the images to ECR: `REGION=… AWS_ACCOUNT=… ./deploy/build-and-push.sh`
+- Run the `api` and `web` images as AWS ECS tasks / ECS-anywhere on a host with
+  Docker, wired to a CockroachDB Cloud cluster (set `DATABASE_URL`,
+  `S3_ENDPOINT` to real S3, `JWT_SECRET`, and the Bedrock/MCP vars).
+
+CI (`.github/workflows/ci.yml`) builds the backend, type-checks + builds the
+frontend, runs `go test ./...`, and builds both container images.
+
 ## API endpoints
 
 See [docs/API.md](docs/API.md). Implemented today: health, auth
-(register/login), and resume management. Chat, job search, recommendations,
-saved jobs, and applications endpoints are planned.
+(register/login), resume management, job search, recommendations, saved jobs,
+and applications.
 
 ## Documentation
 
