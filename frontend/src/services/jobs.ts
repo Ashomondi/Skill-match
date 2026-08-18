@@ -10,6 +10,9 @@ export interface Job {
   salary?: string;
   postedAt?: string;
   matchScore?: number;
+  description?: string;
+  remote?: boolean;
+  sourceUrl?: string;
 }
 
 export interface JobSearchParams {
@@ -34,6 +37,9 @@ const normalizeJob = (item: any): Job => ({
   salary: item.salary ?? item.salary_range,
   postedAt: item.posted_at ?? item.created_at ?? item.postedAt,
   matchScore: Number(item.match_score ?? item.matchScore) || undefined,
+  description: item.description,
+  remote: Boolean(item.remote),
+  sourceUrl: item.source_url ?? item.url,
 });
 
 export const jobsService = {

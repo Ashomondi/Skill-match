@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle, Briefcase, ChevronLeft, RefreshCw, Search } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { AppShell } from '../components/AppShell';
@@ -6,6 +6,7 @@ import { JobCard } from '../components/JobCard';
 import { MatchRing } from '../components/MatchRing';
 import { RecommendationsSection } from '../components/jobs/RecommendationsSection';
 import { useJobs } from '../hooks/useJobs';
+import { Job, jobsService } from '../services/jobs';
 
 const filterClassName = 'h-11 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3 text-sm text-[var(--text-heading)] outline-none focus:border-[var(--accent-gold)]';
 
@@ -56,15 +57,18 @@ export const Jobs: React.FC = () => {
 
 export const JobDetail: React.FC = () => {
   const { jobId } = useParams();
+  const [job, setJob] = useState<Job | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { if (!jobId) return; void jobsService.get(jobId).then(setJob).catch((err) => setError(err instanceof Error ? err.message : "Job could not be loaded.")).finally(() => setLoading(false)); }, [jobId]);
   return (
     <AppShell>
       <Link to="/discover" className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16} />Back to results</Link>
       <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_310px]">
         <article>
-          <h1 className="font-serif text-4xl font-bold text-[var(--text-heading)]">Senior UX Designer</h1>
-          <p className="mt-2">Acme Corp • London, UK (Hybrid)</p>
-          <div className="mt-4 flex flex-wrap gap-2">{['Full-time', 'Mid-Senior Level', '£75k - £90k'].map((item) => <span className="rounded-full bg-[var(--bg-chip)] px-3 py-1 text-sm" key={item}>{item}</span>)}</div>
-          {[['About the Role', 'We are seeking a seasoned UX Designer to lead complex product initiatives across our core platform.'], ['Responsibilities', 'Lead end-to-end design processes for major platform features. Develop and maintain a high-end design system. Conduct user research.'], ['Requirements', '5+ years of product design experience, proficiency in Figma and interactive prototyping.']].map(([heading, copy]) => <section className="mt-8" key={heading}><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">{heading}</h2><p className="mt-3 leading-7">{copy}</p></section>)}
+          {loading && <p className="mt-6 text-sm text-[var(--text-muted)]">Loading job...</p>}{error && <p role="alert" className="mt-6 text-sm text-[var(--status-rejected)]">{error}</p>}{job && <><h1 className="font-serif text-4xl font-bold text-[var(--text-heading)]">{job.title}</h1><p className="mt-2">{job.company} • {job.location}</p></>}
+          {job && <div className="mt-4 flex flex-wrap gap-2">{[job.remote ? 'Remote' : 'On-site', job.workType, job.salary].filter(Boolean).map((item) => <span className="rounded-full bg-[var(--bg-chip)] px-3 py-1 text-sm" key={item}>{item}</span>)}</div>}
+          {job && <section className="mt-8"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">About the Role</h2><p className="mt-3 whitespace-pre-wrap leading-7">{job.description || 'No description provided.'}</p></section>}
           <Link to={`/discover/${jobId}/tailor`} className="mt-8 inline-block rounded bg-[var(--btn-primary-bg)] px-5 py-3 text-sm font-semibold text-[var(--btn-primary-text)]">Tailor my CV for this role</Link>
         </article>
         <aside className="h-fit rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-5">
