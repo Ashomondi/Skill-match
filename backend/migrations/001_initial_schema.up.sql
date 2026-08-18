@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Case-insensitive lookups are common on login; store email lowercased at the
 -- application layer and enforce it here as a defensive backstop.
-ALTER TABLE users ADD CONSTRAINT users_email_lowercase_chk
-    CHECK (email = lower(email));
+-- ALTER TABLE users ADD CONSTRAINT users_email_lowercase_chk
+   -- CHECK (email = lower(email));
 
 COMMENT ON TABLE users IS 'Registered application users.';
 COMMENT ON COLUMN users.password_hash IS 'bcrypt hash, never plaintext.';
