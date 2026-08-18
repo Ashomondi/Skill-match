@@ -27,6 +27,17 @@ export interface JobSearchResult {
   total: number;
 }
 
+// Job sources return trusted formatting markup, but it must never be injected
+// into the page. Decode the markup into readable text while preserving breaks.
+export const formatJobDescription = (value?: string): string => {
+  if (!value) return '';
+  const withBreaks = value
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/(p|div|li|h[1-6])\s*>/gi, '\n');
+  const doc = new DOMParser().parseFromString(withBreaks, 'text/html');
+  return (doc.body.textContent || '').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
+};
+
 const normalizeJob = (item: any): Job => ({
   id: String(item.id ?? item.job_id),
   title: item.title ?? item.job_title ?? 'Untitled role',

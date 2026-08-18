@@ -7,7 +7,7 @@ import { MatchRing } from '../components/MatchRing';
 import { RecommendationsSection } from '../components/jobs/RecommendationsSection';
 import { useJobs } from '../hooks/useJobs';
 import { savedJobsService } from '../services/savedJobs';
-import { Job, jobsService } from '../services/jobs';
+import { formatJobDescription, Job, jobsService } from '../services/jobs';
 
 const filterClassName = 'h-11 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3 text-sm text-[var(--text-heading)] outline-none focus:border-[var(--accent-gold)]';
 
@@ -71,7 +71,7 @@ export const JobDetail: React.FC = () => {
         <article>
           {loading && <p className="mt-6 text-sm text-[var(--text-muted)]">Loading job...</p>}{error && <p role="alert" className="mt-6 text-sm text-[var(--status-rejected)]">{error}</p>}{job && <><h1 className="font-serif text-4xl font-bold text-[var(--text-heading)]">{job.title}</h1><p className="mt-2">{job.company} • {job.location}</p></>}
           {job && <div className="mt-4 flex flex-wrap gap-2">{[job.remote ? 'Remote' : 'On-site', job.workType, job.salary].filter(Boolean).map((item) => <span className="rounded-full bg-[var(--bg-chip)] px-3 py-1 text-sm" key={item}>{item}</span>)}</div>}
-          {job && <section className="mt-8"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">About the Role</h2><p className="mt-3 whitespace-pre-wrap leading-7">{job.description || 'No description provided.'}</p></section>}
+          {job && <section className="mt-8"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">About the Role</h2><p className="mt-3 whitespace-pre-wrap leading-7">{formatJobDescription(job.description) || 'No description provided.'}</p></section>}
           <Link to={`/discover/${jobId}/tailor`} className="mt-8 inline-block rounded bg-[var(--btn-primary-bg)] px-5 py-3 text-sm font-semibold text-[var(--btn-primary-text)]">Tailor my CV for this role</Link>
         </article>
         <aside className="h-fit rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-5">
