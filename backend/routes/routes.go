@@ -39,12 +39,14 @@ func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
 }
 
 func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTManager) {
-	mux.Handle(
-		"GET /api/jobs/search",
-		middleware.Auth(jwt)(
-			http.HandlerFunc(h.Search),
-		),
-	)
+	auth := middleware.Auth(jwt)
+	// The frontend calls /api/jobs?q=...; keep /api/jobs/search as well.
+	mux.Handle("GET /api/jobs", auth(http.HandlerFunc(h.Search)))
+	mux.Handle("GET /api/jobs/search", auth(http.HandlerFunc(h.Search)))
+}
+
+func RegisterRecommendations(mux *http.ServeMux, h *handlers.RecommendationHandler, jwt *utils.JWTManager) {
+	mux.Handle("GET /api/recommendations", middleware.Auth(jwt)(http.HandlerFunc(h.GetPersonalizedRecommendations)))
 }
 
 func RegisterSavedJobsRoutes(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *utils.JWTManager) {

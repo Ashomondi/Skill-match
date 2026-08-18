@@ -2,11 +2,16 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrProfileNotFound is returned when a user has no profile row yet.
+var ErrProfileNotFound = errors.New("repositories: profile not found")
 
 type UserProfile struct {
 	UserID     string    `json:"user_id"`
@@ -36,6 +41,9 @@ func (r *ProfileRepository) GetProfileByUserID(ctx context.Context, userID strin
 	err := r.db.QueryRow(ctx, query, userID).Scan(
 		&p.UserID, &p.Bio, &p.Skills, &p.Experience, &p.ResumeURL, &p.UpdatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrProfileNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("repositories: get profile by user id: %w", err)
 	}

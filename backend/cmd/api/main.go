@@ -62,6 +62,10 @@ func main() {
 		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
+		routes.RegisterRecommendations(mux,
+			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool))),
+			jwtManager,
+		)
 
 		if ingestible, ok := interface{}(jobService).(interface {
 			IngestJobs(ctx context.Context) (int, int, error)

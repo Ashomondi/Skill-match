@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"skill-match/backend/repositories"
@@ -41,6 +42,11 @@ func (s *RecommendationService) RecommendForUser(
 
 	profile, err := s.profileRepo.GetProfileByUserID(ctx, targetUserID)
 	if err != nil {
+		if errors.Is(err, repositories.ErrProfileNotFound) {
+			// No profile yet — return no recommendations rather than an error
+			// so the client renders an empty state instead of a failure.
+			return []*repositories.MatchScore{}, nil
+		}
 		return nil, fmt.Errorf("services: fetch user resume/profile: %w", err)
 	}
 
