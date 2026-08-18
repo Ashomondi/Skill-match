@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 
 	"skill-match/backend/repositories"
 )
@@ -41,6 +44,9 @@ func (s *RecommendationService) RecommendForUser(
 
 	profile, err := s.profileRepo.GetProfileByUserID(ctx, targetUserID)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []*repositories.MatchScore{}, nil
+		}
 		return nil, fmt.Errorf("services: fetch user resume/profile: %w", err)
 	}
 
