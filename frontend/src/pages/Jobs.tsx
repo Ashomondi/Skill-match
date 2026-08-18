@@ -6,6 +6,7 @@ import { JobCard } from '../components/JobCard';
 import { MatchRing } from '../components/MatchRing';
 import { RecommendationsSection } from '../components/jobs/RecommendationsSection';
 import { useJobs } from '../hooks/useJobs';
+import { savedJobsService } from '../services/savedJobs';
 import { Job, jobsService } from '../services/jobs';
 
 const filterClassName = 'h-11 rounded-md border border-[var(--border-hairline)] bg-[var(--bg-input)] px-3 text-sm text-[var(--text-heading)] outline-none focus:border-[var(--accent-gold)]';
@@ -60,6 +61,8 @@ export const JobDetail: React.FC = () => {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   useEffect(() => { if (!jobId) return; void jobsService.get(jobId).then(setJob).catch((err) => setError(err instanceof Error ? err.message : "Job could not be loaded.")).finally(() => setLoading(false)); }, [jobId]);
   return (
     <AppShell>
@@ -76,7 +79,7 @@ export const JobDetail: React.FC = () => {
           <div className="my-5 flex justify-center"><MatchRing value={85} size={110} /></div>
           <ul className="space-y-3 text-sm leading-6 text-[var(--text-insight)]"><li>Your 6 years of experience aligns with the “5+ years” requirement.</li><li>Strong overlap in B2B platform design.</li><li>Missing explicit mention of Figma prototyping, consider highlighting this.</li></ul>
           <Link to={`/discover/${jobId}/tailor`} className="mt-6 block rounded bg-[var(--btn-primary-bg)] py-3 text-center text-sm font-semibold text-[var(--btn-primary-text)]">Tailor my CV for this role</Link>
-          <button type="button" className="mt-3 w-full rounded border border-[var(--text-button-fill)] py-3 text-sm text-[var(--text-button-fill)]">Save for later</button>
+          <button type="button" disabled={!job || saving || saved} onClick={() => { if (!jobId) return; setSaving(true); setError(null); void savedJobsService.save(jobId).then(() => setSaved(true)).catch((err) => setError(err instanceof Error ? err.message : "The job could not be saved.")).finally(() => setSaving(false)); }} className="mt-3 w-full rounded border border-[var(--text-button-fill)] py-3 text-sm text-[var(--text-button-fill)] disabled:opacity-50">{saving ? "Saving..." : saved ? "Saved" : "Save for later"}</button>
         </aside>
       </div>
     </AppShell>
