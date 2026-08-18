@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,28 @@ func NewJobsHandler(jobService *services.JobService) *JobsHandler {
 	return &JobsHandler{
 		jobService: jobService,
 	}
+}
+
+func (h *JobsHandler) Get(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "job ID is required"})
+		return
+	}
+	job, err := h.jobService.GetJob(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, repositories.ErrJobNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "job not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load job"})
+		return
+	}
+	writeJSON(w, http.StatusOK, job)
 }
 
 func (h *JobsHandler) Search(w http.ResponseWriter, r *http.Request) {

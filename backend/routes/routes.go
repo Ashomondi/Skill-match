@@ -39,6 +39,7 @@ func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
 }
 
 func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTManager) {
+	mux.Handle("GET /api/jobs/{id}", middleware.Auth(jwt)(http.HandlerFunc(h.Get)))
 	mux.Handle(
 		"GET /api/jobs/search",
 		middleware.Auth(jwt)(

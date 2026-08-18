@@ -60,6 +60,10 @@ func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
 	return ingested, skipped, nil
 }
 
+func (s *JobService) GetJob(ctx context.Context, id string) (*repositories.Job, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *JobService) SearchJobs(ctx context.Context, filter repositories.JobSearchFilter) (*repositories.JobSearchResult, error) {
 	return s.repo.Search(ctx, filter)
 }
