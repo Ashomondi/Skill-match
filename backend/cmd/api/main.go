@@ -51,6 +51,7 @@ func main() {
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
 
 		jobRepo := repositories.NewJobRepository(pool)
+		routes.RegisterRecommendations(mux, handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool))), jwtManager)
 		savedJobs := handlers.NewSavedJobsHandler(services.NewSavedJobService(repositories.NewSavedJobRepository(pool)))
 		routes.RegisterSavedJobs(mux, savedJobs, jwtManager)
 		routes.RegisterApplications(mux,

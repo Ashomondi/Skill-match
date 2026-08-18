@@ -55,6 +55,10 @@ func RegisterSavedJobs(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *ut
 	mux.Handle("DELETE /api/saved-jobs/{job_id}", auth(http.HandlerFunc(h.Remove)))
 }
 
+func RegisterRecommendations(mux *http.ServeMux, h *handlers.RecommendationHandler, jwt *utils.JWTManager) {
+	mux.Handle("GET /api/recommendations", middleware.Auth(jwt)(http.HandlerFunc(h.GetPersonalizedRecommendations)))
+}
+
 func RegisterApplications(mux *http.ServeMux, h *handlers.ApplicationHandler, jwt *utils.JWTManager) {
 	mux.Handle("GET /api/applications", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
 }
