@@ -45,7 +45,7 @@ export const jobsService = {
     if (params.workType) searchParams.set('work_type', params.workType);
 
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/jobs${searchParams.size ? `?${searchParams}` : ''}`, {
+    const response = await fetch(`${API_BASE_URL}/jobs/search${searchParams.size ? `?${searchParams}` : ''}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const body = await response.json().catch(() => null);
