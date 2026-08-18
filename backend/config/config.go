@@ -22,6 +22,9 @@ type Config struct {
 	MCPClusterID string
 
 	BedrockEmbedModelID string
+	AgentRouterAPIKey   string
+	AgentRouterBaseURL  string
+	AgentRouterModel    string
 }
 
 func Load() *Config {
@@ -46,5 +49,8 @@ func Load() *Config {
 		MCPClusterID:       mcpClusterID(),
 
 		BedrockEmbedModelID: bedrockEmbedModelID(),
+		AgentRouterAPIKey:   getEnv("AGENTROUTER_API_KEY", ""),
+		AgentRouterBaseURL:  getEnv("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1"),
+		AgentRouterModel:    getEnv("AGENTROUTER_MODEL", "gpt-5.6-sol"),
 	}
 }

@@ -72,24 +72,31 @@ func main() {
 			log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
 		}()
 
-		if cfg.BedrockChatModelID != "" {
+		var aiGenerator clients.BedrockGenerator
+		if cfg.AgentRouterAPIKey != "" {
+			agentRouter, err := clients.NewAgentRouterClient(cfg.AgentRouterBaseURL, cfg.AgentRouterAPIKey, cfg.AgentRouterModel)
+			if err != nil {
+				log.Printf("WARNING: failed to init AgentRouter: %v — chat disabled", err)
+			} else {
+				aiGenerator = agentRouter
+			}
+		} else if cfg.BedrockChatModelID != "" {
 			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockChatModelID)
 			if err != nil {
 				log.Printf("WARNING: failed to init Bedrock client: %v — chat disabled", err)
 			} else {
-				conversationRepo := repositories.NewConversationRepository(pool)
-				aiService := services.NewAIService(services.NewAIServiceInput{
-					Bedrock:       bedrockClient,
-					Conversations: conversationRepo,
-					Resumes:       repositories.NewResumeRepository(pool),
-				})
-				memoryService := services.NewMemoryService(conversationRepo)
-				chatService := services.NewChatService(aiService, memoryService)
-				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
-				routes.RegisterTailor(mux, handlers.NewTailorHandler(aiService), jwtManager)
+				aiGenerator = bedrockClient
 			}
+		}
+		if aiGenerator != nil {
+			conversationRepo := repositories.NewConversationRepository(pool)
+			aiService := services.NewAIService(services.NewAIServiceInput{Bedrock: aiGenerator, Conversations: conversationRepo, Resumes: repositories.NewResumeRepository(pool)})
+			memoryService := services.NewMemoryService(conversationRepo)
+			chatService := services.NewChatService(aiService, memoryService)
+			routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
+			routes.RegisterTailor(mux, handlers.NewTailorHandler(aiService), jwtManager)
 		} else {
-			log.Println("WARNING: BEDROCK_CHAT_MODEL_ID not set — chat disabled")
+			log.Println("WARNING: no AI provider configured — chat disabled")
 		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
