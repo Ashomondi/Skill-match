@@ -24,15 +24,20 @@ func (h *RecommendationHandler) GetPersonalizedRecommendations(w http.ResponseWr
 		return
 	}
 
-	// Retrieve authenticated user from header/context
-	requestingUserID := r.Header.Get("X-User-ID")
-	targetUserID := r.URL.Query().Get("user_id")
-
-	if requestingUserID == "" || targetUserID == "" {
+	// Resolve the authenticated user (JWT context, X-User-ID fallback).
+	requestingUserID, ok := requestUserID(r)
+	if !ok {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "missing user_id or authentication context"})
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "authentication required"})
 		return
+	}
+
+	// Target user defaults to the authenticated user; an explicit user_id
+	// query param is only allowed for oneself (enforced by the service).
+	targetUserID := r.URL.Query().Get("user_id")
+	if targetUserID == "" {
+		targetUserID = requestingUserID
 	}
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

@@ -59,6 +59,10 @@ func main() {
 		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
+		routes.RegisterRecommendations(mux,
+			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool))),
+			jwtManager,
+		)
 
 		ingested, skipped, err := jobService.IngestJobs(ctx)
 		if err != nil {

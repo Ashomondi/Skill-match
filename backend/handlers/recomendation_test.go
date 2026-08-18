@@ -25,7 +25,7 @@ func TestRecommendationsMissingAuth(t *testing.T) {
 	h := NewRecommendationHandler(nil)
 	h.GetPersonalizedRecommendations(w, req)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected status %d for missing X-User-ID header, got %d", http.StatusBadRequest, w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status %d for missing authentication, got %d", http.StatusUnauthorized, w.Code)
 	}
 }
