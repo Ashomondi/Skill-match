@@ -2,41 +2,78 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
-	"skill-match/backend/repositories"
+	"skill-match/backend/models"
 )
 
-type ApplicationService struct {
-	repo *repositories.ApplicationRepository
+var (
+	ErrApplicationNotFound     = errors.New("application not found")
+	ErrApplicationInvalidInput = errors.New("invalid application input")
+)
+
+// ApplicationRepository defines the interface for repository access.
+type ApplicationRepository interface {
+	Create(ctx context.Context, userID, jobID string) (*models.Application, error)
+	GetByID(ctx context.Context, userID, id string) (*models.Application, error)
+	UpdateStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error)
+	History(ctx context.Context, userID, id string) ([]models.ApplicationStatusChange, error)
+	ListByUserID(ctx context.Context, userID string) ([]*models.Application, error)
 }
 
-func NewApplicationService(repo *repositories.ApplicationRepository) *ApplicationService {
+type ApplicationService struct {
+	repo ApplicationRepository
+}
+
+func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status repositories.ApplicationStatus, notes string) (*repositories.Application, error) {
-	if jobID == "" {
-		return nil, fmt.Errorf("validation: job_id is required")
+func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string) (*models.Application, error) {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
+		return nil, ErrApplicationInvalidInput
 	}
-	return s.repo.Create(ctx, userID, jobID, status, notes)
+	return s.repo.Create(ctx, userID, jobID)
 }
 
-func (s *ApplicationService) ListApplications(ctx context.Context, userID string) ([]*repositories.Application, error) {
+func (s *ApplicationService) List(ctx context.Context, userID string) ([]*models.Application, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, ErrApplicationInvalidInput
+	}
 	return s.repo.ListByUserID(ctx, userID)
 }
 
-func (s *ApplicationService) GetApplicationByID(ctx context.Context, id, userID string) (*repositories.Application, error) {
-	return s.repo.GetByID(ctx, id, userID)
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string) ([]*models.Application, error) {
+	return s.List(ctx, userID)
 }
 
-func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, id, userID string, status repositories.ApplicationStatus, notes string) (*repositories.Application, error) {
-	if !status.IsValid() {
-		return nil, fmt.Errorf("validation: invalid application status")
+func (s *ApplicationService) GetApplicationByID(ctx context.Context, userID, id string) (*models.Application, error) {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
+		return nil, ErrApplicationInvalidInput
 	}
-	return s.repo.UpdateStatus(ctx, id, userID, status, notes)
+	return s.repo.GetByID(ctx, userID, id)
 }
 
-func (s *ApplicationService) DeleteApplication(ctx context.Context, id, userID string) error {
-	return s.repo.Delete(ctx, id, userID)
+func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
+		return nil, ErrApplicationInvalidInput
+	}
+
+	if !isValidApplicationStatus(status) {
+		return nil, fmt.Errorf("%w: invalid application status", ErrApplicationInvalidInput)
+	}
+
+	return s.repo.UpdateStatus(ctx, userID, id, status)
+}
+
+func isValidApplicationStatus(status models.ApplicationStatus) bool {
+	// Evaluates the string representation to stay resilient across model variations
+	switch strings.ToLower(string(status)) {
+	case "saved", "applied", "interviewing", "rejected", "accepted", "offer":
+		return true
+	default:
+		return false
+	}
 }

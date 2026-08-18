@@ -11,10 +11,11 @@ import (
 type contextKey string
 
 const (
-	userIDKey contextKey = "userID"
-	claimsKey contextKey = "claims"
+	UserIDKey contextKey = "userID"
+	ClaimsKey contextKey = "claims"
 )
 
+// Auth middleware validates incoming JWT tokens and injects claims into request context.
 func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,13 +50,13 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 
 			ctx := context.WithValue(
 				r.Context(),
-				userIDKey,
+				UserIDKey,
 				claims.UserID,
 			)
 
 			ctx = context.WithValue(
 				ctx,
-				claimsKey,
+				ClaimsKey,
 				claims,
 			)
 
@@ -67,7 +68,7 @@ func Auth(jwtManager *utils.JWTManager) func(http.Handler) http.Handler {
 // GetUserID retrieves the authenticated user's ID from the request context.
 func GetUserID(r *http.Request) (string, bool) {
 	userID, ok := r.Context().
-		Value(userIDKey).(string)
+		Value(UserIDKey).(string)
 
 	if !ok || strings.TrimSpace(userID) == "" {
 		return "", false
@@ -76,10 +77,8 @@ func GetUserID(r *http.Request) (string, bool) {
 	return userID, true
 }
 
-// ClaimsFromContext retrieves JWT claims from the context.
-// ClaimsFromContext retrieves the authenticated user's JWT claims from
-// the context, or nil if unauthenticated.
+// ClaimsFromContext retrieves the authenticated user's JWT claims from the context, or nil if unauthenticated.
 func ClaimsFromContext(ctx context.Context) *utils.Claims {
-	claims, _ := ctx.Value(claimsKey).(*utils.Claims)
+	claims, _ := ctx.Value(ClaimsKey).(*utils.Claims)
 	return claims
 }

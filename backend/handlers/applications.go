@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
-	"skill-match/backend/repositories"
+	"skill-match/backend/models"
 	"skill-match/backend/services"
 )
 
@@ -18,14 +19,14 @@ func NewApplicationHandler(service *services.ApplicationService) *ApplicationHan
 }
 
 type CreateApplicationRequest struct {
-	JobID  string                         `json:"job_id"`
-	Status repositories.ApplicationStatus `json:"status"`
-	Notes  string                         `json:"notes"`
+	JobID  string                 `json:"job_id"`
+	Status models.ApplicationStatus `json:"status"`
+	Notes  string                 `json:"notes,omitempty"`
 }
 
 type UpdateApplicationRequest struct {
-	Status repositories.ApplicationStatus `json:"status"`
-	Notes  string                         `json:"notes"`
+	Status models.ApplicationStatus `json:"status"`
+	Notes  string                 `json:"notes,omitempty"`
 }
 
 // HandleCollection handles POST /api/applications and GET /api/applications
@@ -54,8 +55,13 @@ func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		app, err := h.service.CreateApplication(r.Context(), userID, req.JobID, req.Status, req.Notes)
+		app, err := h.service.CreateApplication(r.Context(), userID, req.JobID, req.Status)
 		if err != nil {
+			if errors.Is(err, services.ErrApplicationInvalidInput) {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to create application"})
 			return
@@ -105,9 +111,9 @@ func (h *ApplicationHandler) HandleResource(w http.ResponseWriter, r *http.Reque
 
 	switch r.Method {
 	case http.MethodGet:
-		app, err := h.service.GetApplicationByID(r.Context(), id, userID)
+		app, err := h.service.GetApplicationByID(r.Context(), userID, id)
 		if err != nil {
-			if err.Error() == "not_found" {
+			if errors.Is(err, services.ErrApplicationNotFound) {
 				w.WriteHeader(http.StatusNotFound)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "application not found"})
 				return
@@ -128,14 +134,14 @@ func (h *ApplicationHandler) HandleResource(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		app, err := h.service.UpdateApplicationStatus(r.Context(), id, userID, req.Status, req.Notes)
+		app, err := h.service.UpdateApplicationStatus(r.Context(), userID, id, req.Status)
 		if err != nil {
-			if strings.HasPrefix(err.Error(), "validation:") {
+			if errors.Is(err, services.ErrApplicationInvalidInput) {
 				w.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 				return
 			}
-			if err.Error() == "not_found" {
+			if errors.Is(err, services.ErrApplicationNotFound) {
 				w.WriteHeader(http.StatusNotFound)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "application not found or access denied"})
 				return
@@ -149,9 +155,9 @@ func (h *ApplicationHandler) HandleResource(w http.ResponseWriter, r *http.Reque
 		_ = json.NewEncoder(w).Encode(app)
 
 	case http.MethodDelete:
-		err := h.service.DeleteApplication(r.Context(), id, userID)
+		err := h.service.DeleteApplication(r.Context(), userID, id)
 		if err != nil {
-			if err.Error() == "not_found" {
+			if errors.Is(err, services.ErrApplicationNotFound) {
 				w.WriteHeader(http.StatusNotFound)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "application not found or access denied"})
 				return

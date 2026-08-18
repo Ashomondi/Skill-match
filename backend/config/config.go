@@ -1,10 +1,16 @@
 package config
 
+import (
+	"fmt"
+)
+
 type Config struct {
 	Port string
 
 	DatabaseURL string
 	JWTSecret   string
+	CORSOrigin  string
+	AllowedOrigin string
 
 	AWSRegion        string
 	S3Bucket         string
@@ -23,14 +29,25 @@ type Config struct {
 	BedrockEmbedModelID string
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
 	LoadEnvFile()
 
-	return &Config{
+	dbURL := getEnv("DATABASE_URL", "")
+	if dbURL == "" {
+		return nil, fmt.Errorf("config: DATABASE_URL environment variable is required")
+	}
+
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		return nil, fmt.Errorf("config: JWT_SECRET environment variable is required")
+	}
+
+	cfg := &Config{
 		Port: getEnv("PORT", "8080"),
 
-		DatabaseURL: getEnv("DATABASE_URL", ""),
-		JWTSecret:   getEnv("JWT_SECRET", ""),
+		DatabaseURL: dbURL,
+		JWTSecret:   jwtSecret,
+		CORSOrigin:  getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:3000"),
 
 		AWSRegion:        awsRegion(),
 		S3Bucket:         s3Bucket(),
@@ -45,4 +62,6 @@ func Load() *Config {
 
 		BedrockEmbedModelID: bedrockEmbedModelID(),
 	}
+
+	return cfg, nil
 }

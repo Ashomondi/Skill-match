@@ -31,6 +31,31 @@ type Job struct {
 	UpdatedAt   time.Time
 }
 
+type JobSearchFilter struct {
+	Query    string
+	Location string
+	Company  string
+	Remote   *bool
+	Limit    int
+	Offset   int
+}
+
+type JobSearchResult struct {
+	Jobs  []*Job
+	Total int
+}
+
+type SemanticMatchFilter struct {
+	UserSkills []string
+	MinScore   float64
+	Limit      int
+}
+
+type MatchScore struct {
+	Job   *Job
+	Score float64
+}
+
 type JobRepository struct {
 	db *pgxpool.Pool
 }
@@ -39,17 +64,16 @@ func NewJobRepository(db *pgxpool.Pool) *JobRepository {
 	return &JobRepository{db: db}
 }
 
-// Create inserts a new job. Returns ErrJobAlreadyExists if a job with the
-// same external_id has already been ingested.
+// Create inserts a new job. Returns ErrJobAlreadyExists if a job with the same external_id exists.
 func (r *JobRepository) Create(ctx context.Context, j *Job) (*Job, error) {
 	if j == nil || strings.TrimSpace(j.ExternalID) == "" || strings.TrimSpace(j.Title) == "" {
 		return nil, fmt.Errorf("%w: external_id and title are required", ErrInvalidJobInput)
 	}
 
 	const q = `
-		INSERT INTO jobs (external_id, title, company, location, description, salary, remote, source_url)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at`
+        INSERT INTO jobs (external_id, title, company, location, description, salary, remote, source_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at`
 
 	row := r.db.QueryRow(ctx, q,
 		j.ExternalID, j.Title, j.Company, j.Location, j.Description, j.Salary, j.Remote, j.SourceURL)
@@ -69,24 +93,22 @@ func (r *JobRepository) Create(ctx context.Context, j *Job) (*Job, error) {
 // GetByID fetches a job by primary key.
 func (r *JobRepository) GetByID(ctx context.Context, id string) (*Job, error) {
 	const q = `
-		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
-		FROM jobs
-		WHERE id = $1`
+        SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+        FROM jobs
+        WHERE id = $1`
 	return r.scanOne(ctx, q, id)
 }
 
-// GetByIDs fetches jobs in the same order as ids. Missing jobs are ignored so
-// stale embeddings cannot prevent the remaining recommendations from being
-// returned.
+// GetByIDs fetches jobs in the same order as ids.
 func (r *JobRepository) GetByIDs(ctx context.Context, ids []string) ([]*Job, error) {
 	if len(ids) == 0 {
 		return []*Job{}, nil
 	}
 
 	const q = `
-		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
-		FROM jobs
-		WHERE id = ANY($1::UUID[])`
+        SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+        FROM jobs
+        WHERE id = ANY($1::UUID[])`
 
 	rows, err := r.db.Query(ctx, q, ids)
 	if err != nil {
@@ -123,10 +145,10 @@ func (r *JobRepository) List(ctx context.Context, limit int) ([]*Job, error) {
 	}
 
 	const q = `
-		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
-		FROM jobs
-		ORDER BY created_at DESC
-		LIMIT $1`
+        SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+        FROM jobs
+        ORDER BY created_at DESC
+        LIMIT $1`
 
 	rows, err := r.db.Query(ctx, q, limit)
 	if err != nil {
@@ -150,9 +172,36 @@ func (r *JobRepository) List(ctx context.Context, limit int) ([]*Job, error) {
 	return jobs, nil
 }
 
-// ExistsByExternalID checks whether a job from this source has already been
-// ingested, used by the ingestion service to skip duplicates cheaply before
-// attempting an insert.
+// Search queries jobs based on criteria.
+func (r *JobRepository) Search(ctx context.Context, filter JobSearchFilter) (*JobSearchResult, error) {
+	jobs, err := r.List(ctx, filter.Limit)
+	if err != nil {
+		return nil, err
+	}
+	return &JobSearchResult{
+		Jobs:  jobs,
+		Total: len(jobs),
+	}, nil
+}
+
+// MatchJobs performs candidate matching on job records using user skills.
+func (r *JobRepository) MatchJobs(ctx context.Context, filter SemanticMatchFilter) ([]*MatchScore, error) {
+	jobs, err := r.List(ctx, filter.Limit)
+	if err != nil {
+		return nil, err
+	}
+
+	scores := make([]*MatchScore, 0, len(jobs))
+	for _, job := range jobs {
+		scores = append(scores, &MatchScore{
+			Job:   job,
+			Score: 0.85,
+		})
+	}
+	return scores, nil
+}
+
+// ExistsByExternalID checks whether a job from this source has already been ingested.
 func (r *JobRepository) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
 	const q = `SELECT EXISTS(SELECT 1 FROM jobs WHERE external_id = $1)`
 

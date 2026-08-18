@@ -22,7 +22,10 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 
 	ctx := context.Background()
 
@@ -59,11 +62,15 @@ func main() {
 		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
 
-		ingested, skipped, err := jobService.IngestJobs(ctx)
-		if err != nil {
-			log.Printf("WARNING: job ingestion failed: %v", err)
-		} else {
-			log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
+		if ingestible, ok := interface{}(jobService).(interface {
+			IngestJobs(ctx context.Context) (int, int, error)
+		}); ok {
+			ingested, skipped, err := ingestible.IngestJobs(ctx)
+			if err != nil {
+				log.Printf("WARNING: job ingestion failed: %v", err)
+			} else {
+				log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
+			}
 		}
 
 		if cfg.BedrockModelID != "" {
@@ -111,23 +118,25 @@ func main() {
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 
-	healthHandler := handlers.NewHealthHandler(pool, s3Client)
-	routes.RegisterAll(mux,
-		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
-	)
+	// ... setup handlers, services, and route registrations above ...
 
-	handler := middleware.Chain(mux,
-		middleware.Logging,
-		middleware.Recovery,
-		middleware.CORS,
-	)
+    healthHandler := handlers.NewHealthHandler(pool, s3Client)
+    routes.RegisterAll(mux,
+        func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
+    )
 
-	log.Printf("listening on :%s", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
-		log.Fatal(err)
-	}
+    // 👇 Middleware chain setup belongs here
+  handler := middleware.Chain(mux,
+	middleware.Logging,
+	middleware.Recovery,
+	middleware.CORS(cfg.AllowedOrigin), // Pass cfg.AllowedOrigin (or "*" / your origin string)
+)
+
+    log.Printf("listening on :%s", cfg.Port)
+    if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
+        log.Fatal(err)
+    }
 }
-
 func jwtSecret(cfg *config.Config) string {
 	if cfg.JWTSecret != "" {
 		return cfg.JWTSecret
