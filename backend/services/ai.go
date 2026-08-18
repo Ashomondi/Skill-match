@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ErrAIInvalidInput     = errors.New("invalid AI input")
-	ErrAIService          = errors.New("AI service error")
+	ErrAIInvalidInput = errors.New("invalid AI input")
+	ErrAIService      = errors.New("AI service error")
 )
 
 type AIService struct {
@@ -135,4 +135,22 @@ func (s *AIService) GenerateResponse(
 	return &AIResponse{
 		Message: response,
 	}, nil
+}
+
+const maxAIMessageLength = 4000
+
+func validateAIRequest(input AIRequest) error {
+	if strings.TrimSpace(input.UserID) == "" {
+		return utils.NewValidationError("User ID is required.", nil)
+	}
+	if strings.TrimSpace(input.Message) == "" {
+		return utils.NewValidationError("Please enter a message.", nil)
+	}
+	if len(strings.TrimSpace(input.Message)) > maxAIMessageLength {
+		return utils.NewValidationError(
+			fmt.Sprintf("Your message is too long (max %d characters).", maxAIMessageLength),
+			nil,
+		)
+	}
+	return nil
 }

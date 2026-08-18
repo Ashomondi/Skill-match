@@ -24,8 +24,8 @@ func (h *SavedJobsHandler) HandleSavedJobs(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 
 	// Authentication check
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := requestUserID(r)
+	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
@@ -79,8 +79,8 @@ func (h *SavedJobsHandler) HandleDeleteSavedJob(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := requestUserID(r)
+	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return

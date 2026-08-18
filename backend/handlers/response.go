@@ -2,9 +2,24 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
+	"skill-match/backend/middleware"
 	"skill-match/backend/utils"
 )
+
+// requestUserID resolves the authenticated user, preferring the JWT context
+// injected by middleware.Auth and falling back to the X-User-ID header (used
+// by some handlers and their unit tests).
+func requestUserID(r *http.Request) (string, bool) {
+	if uid, ok := middleware.GetUserID(r); ok {
+		return uid, true
+	}
+	if uid := strings.TrimSpace(r.Header.Get("X-User-ID")); uid != "" {
+		return uid, true
+	}
+	return "", false
+}
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	if errorPayload, ok := data.(map[string]string); ok {

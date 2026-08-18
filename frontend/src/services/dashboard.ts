@@ -8,7 +8,7 @@ const emptyCounts = () => Object.fromEntries(statuses.map((status) => [status, 0
 const request = async (path: string) => { const token = localStorage.getItem('token'); const response = await fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error?.message || body?.error || body?.message || 'Unable to load dashboard data.'); return body; };
 // The backend wraps success payloads in { data: ... }.
 const unwrap = (body: any): any => (body && typeof body === 'object' && 'data' in body ? body.data : body);
-const listFrom = (body: any): any[] => { const inner = unwrap(body); return Array.isArray(inner) ? inner : inner?.applications || inner?.data || []; };
+const listFrom = (body: any): any[] => { const inner = unwrap(body); return Array.isArray(inner) ? inner : inner?.applications || inner?.saved_jobs || inner?.savedJobs || inner?.data || []; };
 
 export const dashboardService = {
   async getDashboard(): Promise<DashboardData> {
