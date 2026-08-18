@@ -35,6 +35,28 @@ type JobRepository struct {
 	db *pgxpool.Pool
 }
 
+type JobSearchFilter struct {
+	Query    string
+	Location string
+	Company  string
+	Remote   *bool
+	Limit    int
+	Offset   int
+}
+type JobSearchResult struct {
+	Jobs  []*Job
+	Total int
+}
+type SemanticMatchFilter struct {
+	UserSkills []string
+	MinScore   float64
+	Limit      int
+}
+type MatchScore struct {
+	Job   *Job
+	Score float64
+}
+
 func NewJobRepository(db *pgxpool.Pool) *JobRepository {
 	return &JobRepository{db: db}
 }
@@ -148,6 +170,87 @@ func (r *JobRepository) List(ctx context.Context, limit int) ([]*Job, error) {
 	}
 
 	return jobs, nil
+}
+
+func (r *JobRepository) Search(ctx context.Context, f JobSearchFilter) (*JobSearchResult, error) {
+	if f.Limit <= 0 || f.Limit > 100 {
+		f.Limit = 20
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	args := []any{}
+	c := []string{}
+	if v := strings.TrimSpace(f.Query); v != "" {
+		args = append(args, v)
+		i := len(args)
+		c = append(c, fmt.Sprintf("(title ILIKE '%%' || %d || '%%' OR company ILIKE '%%' || %d || '%%' OR description ILIKE '%%' || %d || '%%')", i, i, i))
+	}
+	if v := strings.TrimSpace(f.Location); v != "" {
+		args = append(args, v)
+		c = append(c, fmt.Sprintf("location ILIKE '%%' || %d || '%%'", len(args)))
+	}
+	if v := strings.TrimSpace(f.Company); v != "" {
+		args = append(args, v)
+		c = append(c, fmt.Sprintf("company ILIKE '%%' || %d || '%%'", len(args)))
+	}
+	if f.Remote != nil {
+		args = append(args, *f.Remote)
+		c = append(c, fmt.Sprintf("remote = %d", len(args)))
+	}
+	w := ""
+	if len(c) > 0 {
+		w = " WHERE " + strings.Join(c, " AND ")
+	}
+	var total int
+	if err := r.db.QueryRow(ctx, "SELECT count(*) FROM jobs"+w, args...).Scan(&total); err != nil {
+		return nil, err
+	}
+	args = append(args, f.Limit, f.Offset)
+	q := `SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at FROM jobs` + w + fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d OFFSET %d", len(args)-1, len(args))
+	rows, err := r.db.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*Job{}
+	for rows.Next() {
+		j := &Job{}
+		if err := rows.Scan(&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location, &j.Description, &j.Salary, &j.Remote, &j.SourceURL, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return &JobSearchResult{Jobs: out, Total: total}, rows.Err()
+}
+func (r *JobRepository) MatchJobs(ctx context.Context, f SemanticMatchFilter) ([]*MatchScore, error) {
+	jobs, err := r.List(ctx, 200)
+	if err != nil {
+		return nil, err
+	}
+	limit := f.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	out := []*MatchScore{}
+	for _, j := range jobs {
+		score := 0.0
+		for _, s := range f.UserSkills {
+			if strings.Contains(strings.ToLower(j.Title+" "+j.Description), strings.ToLower(strings.TrimSpace(s))) {
+				score++
+			}
+		}
+		if len(f.UserSkills) > 0 {
+			score /= float64(len(f.UserSkills))
+		}
+		if score >= f.MinScore {
+			out = append(out, &MatchScore{Job: j, Score: score})
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 // ExistsByExternalID checks whether a job from this source has already been
