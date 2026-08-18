@@ -2,102 +2,41 @@ package services
 
 import (
 	"context"
-	"errors"
-	"github.com/google/uuid"
-	"skill-match/backend/models"
+	"fmt"
+
 	"skill-match/backend/repositories"
-	"strings"
 )
 
-var (
-	ErrApplicationInvalidInput      = errors.New("services: invalid application input")
-	ErrApplicationInvalidStatus     = errors.New("services: invalid application status")
-	ErrApplicationInvalidTransition = errors.New("services: invalid application status transition")
-	ErrApplicationNotFound          = errors.New("services: application not found")
-	ErrApplicationDuplicate         = errors.New("services: application already exists")
-)
-
-type ApplicationRepository interface {
-	Create(context.Context, string, string) (*models.Application, error)
-	GetByID(context.Context, string, string) (*models.Application, error)
-	UpdateStatus(context.Context, string, string, models.ApplicationStatus) (*models.Application, error)
-	History(context.Context, string, string) ([]models.ApplicationStatusChange, error)
-	ListByUserID(context.Context, string) ([]*models.Application, error)
+type ApplicationService struct {
+	repo *repositories.ApplicationRepository
 }
-type ApplicationService struct{ repo ApplicationRepository }
 
-func NewApplicationService(repo ApplicationRepository) *ApplicationService {
+func NewApplicationService(repo *repositories.ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-// List returns the authenticated user's applications, most recently updated
-// first, enriched with job details.
-func (s *ApplicationService) List(ctx context.Context, userID string) ([]*models.Application, error) {
-	if strings.TrimSpace(userID) == "" {
-		return nil, ErrApplicationInvalidInput
+func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status repositories.ApplicationStatus, notes string) (*repositories.Application, error) {
+	if jobID == "" {
+		return nil, fmt.Errorf("validation: job_id is required")
 	}
+	return s.repo.Create(ctx, userID, jobID, status, notes)
+}
+
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string) ([]*repositories.Application, error) {
 	return s.repo.ListByUserID(ctx, userID)
 }
-func (s *ApplicationService) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
-	if strings.TrimSpace(userID) == "" || uuid.Validate(jobID) != nil {
-		return nil, ErrApplicationInvalidInput
-	}
-	application, err := s.repo.Create(ctx, userID, jobID)
-	if errors.Is(err, repositories.ErrApplicationDuplicate) {
-		return nil, ErrApplicationDuplicate
-	}
-	if errors.Is(err, repositories.ErrJobNotFound) {
-		return nil, ErrApplicationNotFound
-	}
-	return application, err
+
+func (s *ApplicationService) GetApplicationByID(ctx context.Context, id, userID string) (*repositories.Application, error) {
+	return s.repo.GetByID(ctx, id, userID)
 }
-func (s *ApplicationService) Get(ctx context.Context, userID, id string) (*models.Application, error) {
-	if uuid.Validate(id) != nil || strings.TrimSpace(userID) == "" {
-		return nil, ErrApplicationNotFound
+
+func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, id, userID string, status repositories.ApplicationStatus, notes string) (*repositories.Application, error) {
+	if !status.IsValid() {
+		return nil, fmt.Errorf("validation: invalid application status")
 	}
-	a, e := s.repo.GetByID(ctx, userID, id)
-	if errors.Is(e, repositories.ErrApplicationNotFound) {
-		return nil, ErrApplicationNotFound
-	}
-	return a, e
+	return s.repo.UpdateStatus(ctx, id, userID, status, notes)
 }
-func (s *ApplicationService) UpdateStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
-	if !status.Valid() {
-		return nil, ErrApplicationInvalidStatus
-	}
-	a, e := s.Get(ctx, userID, id)
-	if e != nil {
-		return nil, e
-	}
-	if !allowedTransition(a.Status, status) {
-		return nil, ErrApplicationInvalidTransition
-	}
-	updated, err := s.repo.UpdateStatus(ctx, userID, id, status)
-	if errors.Is(err, repositories.ErrApplicationNotFound) {
-		return nil, ErrApplicationNotFound
-	}
-	return updated, err
-}
-func (s *ApplicationService) GetHistory(ctx context.Context, userID, id string) ([]models.ApplicationStatusChange, error) {
-	if strings.TrimSpace(userID) == "" || uuid.Validate(id) != nil {
-		return nil, ErrApplicationNotFound
-	}
-	history, err := s.repo.History(ctx, userID, id)
-	if errors.Is(err, repositories.ErrApplicationNotFound) {
-		return nil, ErrApplicationNotFound
-	}
-	return history, err
-}
-func allowedTransition(from, to models.ApplicationStatus) bool {
-	switch from {
-	case models.ApplicationSaved:
-		return to == models.ApplicationApplied || to == models.ApplicationWithdrawn
-	case models.ApplicationApplied:
-		return to == models.ApplicationScreening || to == models.ApplicationInterview || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
-	case models.ApplicationScreening:
-		return to == models.ApplicationInterview || to == models.ApplicationOffer || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
-	case models.ApplicationInterview:
-		return to == models.ApplicationOffer || to == models.ApplicationRejected || to == models.ApplicationWithdrawn
-	}
-	return false
+
+func (s *ApplicationService) DeleteApplication(ctx context.Context, id, userID string) error {
+	return s.repo.Delete(ctx, id, userID)
 }

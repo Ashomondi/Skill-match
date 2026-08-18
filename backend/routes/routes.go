@@ -38,13 +38,21 @@ func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
 	mux.HandleFunc("POST /api/chat", h.Chat)
 }
 
-func RegisterSavedJobs(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *utils.JWTManager) {
-	mux.Handle("POST /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.Save)))
-	mux.Handle("GET /api/saved-jobs", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
-	mux.Handle("DELETE /api/saved-jobs/{job_id}", middleware.Auth(jwt)(http.HandlerFunc(h.Remove)))
+func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTManager) {
+	mux.Handle(
+		"GET /api/jobs/search",
+		middleware.Auth(jwt)(
+			http.HandlerFunc(h.Search),
+		),
+	)
 }
 
-// RegisterApplications exposes the application endpoints, all protected by auth.
-func RegisterApplications(mux *http.ServeMux, h *handlers.ApplicationHandler, jwt *utils.JWTManager) {
-	mux.Handle("GET /api/applications", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
+func RegisterSavedJobsRoutes(mux *http.ServeMux, h *handlers.SavedJobsHandler) {
+	mux.HandleFunc("/api/saved-jobs", h.HandleSavedJobs)
+	mux.HandleFunc("/api/saved-jobs/", h.HandleDeleteSavedJob)
+}
+
+func RegisterApplicationRoutes(mux *http.ServeMux, h *handlers.ApplicationHandler) {
+	mux.HandleFunc("/api/applications", h.HandleCollection)
+	mux.HandleFunc("/api/applications/", h.HandleResource)
 }
