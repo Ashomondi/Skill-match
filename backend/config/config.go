@@ -13,8 +13,9 @@ type Config struct {
 	S3SecretKey      string
 	S3ForcePathStyle bool
 
-	BedrockRegion  string
-	BedrockModelID string
+	BedrockRegion      string
+	BedrockModelID     string
+	BedrockChatModelID string
 
 	MCPEndpoint  string
 	MCPAPIKey    string
@@ -39,9 +40,10 @@ func Load() *Config {
 		S3SecretKey:      getEnv("AWS_SECRET_ACCESS_KEY", ""),
 		S3ForcePathStyle: getEnv("S3_FORCE_PATH_STYLE", "true") == "true",
 
-		BedrockRegion:  bedrockRegion(),
-		BedrockModelID: bedrockModelID(),
-		MCPClusterID:   mcpClusterID(),
+		BedrockRegion:      bedrockRegion(),
+		BedrockModelID:     bedrockModelID(),
+		BedrockChatModelID: bedrockChatModelID(),
+		MCPClusterID:       mcpClusterID(),
 
 		BedrockEmbedModelID: bedrockEmbedModelID(),
 	}

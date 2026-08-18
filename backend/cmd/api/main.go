@@ -72,8 +72,8 @@ func main() {
 			log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
 		}()
 
-		if cfg.BedrockModelID != "" {
-			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockModelID)
+		if cfg.BedrockChatModelID != "" {
+			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockChatModelID)
 			if err != nil {
 				log.Printf("WARNING: failed to init Bedrock client: %v — chat disabled", err)
 			} else {
@@ -88,7 +88,7 @@ func main() {
 				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
 			}
 		} else {
-			log.Println("WARNING: BEDROCK_MODEL_ID not set — chat disabled")
+			log.Println("WARNING: BEDROCK_CHAT_MODEL_ID not set — chat disabled")
 		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
