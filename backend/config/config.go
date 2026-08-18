@@ -10,6 +10,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	CORSOrigin  string
+	AllowedOrigin string
 
 	AWSRegion        string
 	S3Bucket         string
