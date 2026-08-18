@@ -184,19 +184,19 @@ func (r *JobRepository) Search(ctx context.Context, f JobSearchFilter) (*JobSear
 	if v := strings.TrimSpace(f.Query); v != "" {
 		args = append(args, v)
 		i := len(args)
-		c = append(c, fmt.Sprintf("(title ILIKE '%%' || %d || '%%' OR company ILIKE '%%' || %d || '%%' OR description ILIKE '%%' || %d || '%%')", i, i, i))
+		c = append(c, fmt.Sprintf("(title ILIKE '%%' || $%d || '%%' OR company ILIKE '%%' || $%d || '%%' OR description ILIKE '%%' || $%d || '%%')", i, i, i))
 	}
 	if v := strings.TrimSpace(f.Location); v != "" {
 		args = append(args, v)
-		c = append(c, fmt.Sprintf("location ILIKE '%%' || %d || '%%'", len(args)))
+		c = append(c, fmt.Sprintf("location ILIKE '%%' || $%d || '%%'", len(args)))
 	}
 	if v := strings.TrimSpace(f.Company); v != "" {
 		args = append(args, v)
-		c = append(c, fmt.Sprintf("company ILIKE '%%' || %d || '%%'", len(args)))
+		c = append(c, fmt.Sprintf("company ILIKE '%%' || $%d || '%%'", len(args)))
 	}
 	if f.Remote != nil {
 		args = append(args, *f.Remote)
-		c = append(c, fmt.Sprintf("remote = %d", len(args)))
+		c = append(c, fmt.Sprintf("remote = $%d", len(args)))
 	}
 	w := ""
 	if len(c) > 0 {
@@ -207,7 +207,7 @@ func (r *JobRepository) Search(ctx context.Context, f JobSearchFilter) (*JobSear
 		return nil, err
 	}
 	args = append(args, f.Limit, f.Offset)
-	q := `SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at FROM jobs` + w + fmt.Sprintf(" ORDER BY created_at DESC LIMIT %d OFFSET %d", len(args)-1, len(args))
+	q := `SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at FROM jobs` + w + fmt.Sprintf(" ORDER BY created_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 	rows, err := r.db.Query(ctx, q, args...)
 	if err != nil {
 		return nil, err
