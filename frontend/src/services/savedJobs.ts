@@ -39,7 +39,7 @@ const errorMessage = async (response: Response, fallback: string) => {
 
 export const savedJobsService = {
   async save(jobId: string): Promise<void> {
-    const response = await fetch(`/saved-jobs`, { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) });
+    const response = await fetch(API_BASE_URL + "/saved-jobs", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) });
     if (!response.ok) throw new Error(await errorMessage(response, "The job could not be saved."));
   },
 
