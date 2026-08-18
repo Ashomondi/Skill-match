@@ -34,7 +34,9 @@ const normalizeSavedJob = (item: any): SavedJob => {
 
 const errorMessage = async (response: Response, fallback: string) => {
   const body = await response.json().catch(() => ({}));
-  return body.error || body.message || fallback;
+  if (typeof body.error === "string") return body.error;
+  if (typeof body.error?.message === "string") return body.error.message;
+  return typeof body.message === "string" ? body.message : fallback;
 };
 
 export const savedJobsService = {
