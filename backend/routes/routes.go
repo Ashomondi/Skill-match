@@ -60,5 +60,8 @@ func RegisterRecommendations(mux *http.ServeMux, h *handlers.RecommendationHandl
 }
 
 func RegisterApplications(mux *http.ServeMux, h *handlers.ApplicationHandler, jwt *utils.JWTManager) {
-	mux.Handle("GET /api/applications", middleware.Auth(jwt)(http.HandlerFunc(h.List)))
+	auth := middleware.Auth(jwt)
+	mux.Handle("GET /api/applications", auth(http.HandlerFunc(h.List)))
+	mux.Handle("POST /api/applications", auth(http.HandlerFunc(h.Create)))
+	mux.Handle("PATCH /api/applications/{id}/status", auth(http.HandlerFunc(h.UpdateStatus)))
 }
