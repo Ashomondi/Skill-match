@@ -37,6 +37,14 @@ const normalizeJob = (item: any): Job => ({
 });
 
 export const jobsService = {
+  async get(id: string): Promise<Job> {
+    const token = localStorage.getItem("token");
+    const response = await fetch(API_BASE_URL + "/jobs/" + encodeURIComponent(id), { headers: token ? { Authorization: "Bearer " + token } : {} });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(body?.error?.message || body?.error || body?.message || "Job could not be loaded.");
+    return normalizeJob(body?.data ?? body);
+  },
+
   async search(params: JobSearchParams = {}): Promise<JobSearchResult> {
     const searchParams = new URLSearchParams();
     if (params.query?.trim()) searchParams.set('q', params.query.trim());
