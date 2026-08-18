@@ -52,8 +52,8 @@ func Load() (*Config, error) {
 		AWSRegion:        awsRegion(),
 		S3Bucket:         s3Bucket(),
 		S3Endpoint:       getEnv("S3_ENDPOINT", ""),
-		S3AccessKey:      getEnv("AWS_ACCESS_KEY_ID", ""),
-		S3SecretKey:      getEnv("AWS_SECRET_ACCESS_KEY", ""),
+		S3AccessKey:      getEnv("S3_ACCESS_KEY", getEnv("AWS_ACCESS_KEY_ID", "")),
+		S3SecretKey:      getEnv("S3_SECRET_KEY", getEnv("AWS_SECRET_ACCESS_KEY", "")),
 		S3ForcePathStyle: getEnv("S3_FORCE_PATH_STYLE", "true") == "true",
 
 		BedrockRegion:  bedrockRegion(),

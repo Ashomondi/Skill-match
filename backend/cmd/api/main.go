@@ -91,7 +91,7 @@ func main() {
 				})
 				memoryService := services.NewMemoryService(conversationRepo)
 				chatService := services.NewChatService(aiService, memoryService)
-				routes.RegisterChat(mux, handlers.NewChatHandler(chatService))
+				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
 			}
 		} else {
 			log.Println("WARNING: BEDROCK_MODEL_ID not set — chat disabled")

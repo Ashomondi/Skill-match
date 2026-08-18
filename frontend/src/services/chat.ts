@@ -77,7 +77,7 @@ export const chatService = {
       }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || data.message || 'The assistant could not respond.');
+    if (!response.ok) throw new Error(data.error?.message || data.error || data.message || 'The assistant could not respond.');
     return data.reply || data.response || data.message || data.content || 'I could not generate a response.';
   },
 };
