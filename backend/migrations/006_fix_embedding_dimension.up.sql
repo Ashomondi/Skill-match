@@ -7,4 +7,4 @@
 DROP INDEX IF EXISTS embeddings_vector_idx;
 ALTER TABLE embeddings DROP COLUMN vector;
 ALTER TABLE embeddings ADD COLUMN vector VECTOR(1024) NOT NULL;
-CREATE VECTOR INDEX IF NOT EXISTS embeddings_vector_idx ON embeddings (vector vector_cosine_ops);
+CREATE VECTOR INDEX IF NOT EXISTS embeddings_vector_idx ON embeddings (vector);
