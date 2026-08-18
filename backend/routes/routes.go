@@ -38,6 +38,10 @@ func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler, jwt *utils.JWTMan
 	mux.Handle("POST /api/chat", middleware.Auth(jwt)(http.HandlerFunc(h.Chat)))
 }
 
+func RegisterTailor(mux *http.ServeMux, h *handlers.TailorHandler, jwt *utils.JWTManager) {
+	mux.Handle("POST /api/tailor", middleware.Auth(jwt)(http.HandlerFunc(h.Generate)))
+}
+
 func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTManager) {
 	mux.Handle("GET /api/jobs/{id}", middleware.Auth(jwt)(http.HandlerFunc(h.Get)))
 	mux.Handle(
