@@ -135,12 +135,20 @@ func (s *AIService) GenerateResponse(
 	}, nil
 }
 
-func validateAIRequest(req AIRequest) error {
-	if strings.TrimSpace(req.UserID) == "" {
-		return fmt.Errorf("%w: user ID is required", ErrAIInvalidInput)
+const maxAIMessageLength = 4000
+
+func validateAIRequest(input AIRequest) error {
+	if strings.TrimSpace(input.UserID) == "" {
+		return utils.NewValidationError("User ID is required.", nil)
 	}
-	if strings.TrimSpace(req.Message) == "" {
-		return fmt.Errorf("%w: message is required", ErrAIInvalidInput)
+	if strings.TrimSpace(input.Message) == "" {
+		return utils.NewValidationError("Please enter a message.", nil)
+	}
+	if len(strings.TrimSpace(input.Message)) > maxAIMessageLength {
+		return utils.NewValidationError(
+			fmt.Sprintf("Your message is too long (max %d characters).", maxAIMessageLength),
+			nil,
+		)
 	}
 	return nil
 }

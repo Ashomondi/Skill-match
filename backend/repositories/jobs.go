@@ -212,6 +212,162 @@ func (r *JobRepository) ExistsByExternalID(ctx context.Context, externalID strin
 	return exists, nil
 }
 
+// JobSearchFilter describes the search criteria for JobRepository.Search.
+type JobSearchFilter struct {
+	Query    string
+	Location string
+	Company  string
+	Remote   *bool
+	Limit    int
+	Offset   int
+}
+
+// JobSearchResult is the paginated outcome of a job search.
+type JobSearchResult struct {
+	Jobs  []*Job `json:"jobs"`
+	Total int    `json:"total"`
+}
+
+// MatchScore is a job plus its keyword-overlap score for a user's skills.
+type MatchScore struct {
+	Job       *Job     `json:"job"`
+	Score     float64  `json:"score"`
+	MatchedOn []string `json:"matched_skills,omitempty"`
+}
+
+// SemanticMatchFilter describes the inputs to JobRepository.MatchJobs.
+type SemanticMatchFilter struct {
+	UserSkills []string `json:"user_skills"`
+	MinScore   float64  `json:"min_score"`
+	Limit      int      `json:"limit"`
+}
+
+// Search returns jobs matching the filter (title/description keyword,
+// location, company, remote), paginated by created_at DESC.
+func (r *JobRepository) Search(ctx context.Context, filter JobSearchFilter) (*JobSearchResult, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 20
+	}
+	if filter.Offset < 0 {
+		filter.Offset = 0
+	}
+
+	whereClause := []string{"1=1"}
+	args := []any{}
+	argIdx := 1
+
+	if filter.Query != "" {
+		whereClause = append(whereClause, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", argIdx, argIdx))
+		args = append(args, "%"+filter.Query+"%")
+		argIdx++
+	}
+	if filter.Location != "" {
+		whereClause = append(whereClause, fmt.Sprintf("location ILIKE $%d", argIdx))
+		args = append(args, "%"+filter.Location+"%")
+		argIdx++
+	}
+	if filter.Company != "" {
+		whereClause = append(whereClause, fmt.Sprintf("company ILIKE $%d", argIdx))
+		args = append(args, "%"+filter.Company+"%")
+		argIdx++
+	}
+	if filter.Remote != nil {
+		whereClause = append(whereClause, fmt.Sprintf("remote = $%d", argIdx))
+		args = append(args, *filter.Remote)
+		argIdx++
+	}
+
+	whereStr := strings.Join(whereClause, " AND ")
+
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM jobs WHERE %s", whereStr)
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, fmt.Errorf("repositories: search jobs count: %w", err)
+	}
+
+	selectQuery := fmt.Sprintf(`
+		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+		FROM jobs
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d`, whereStr, argIdx, argIdx+1)
+
+	args = append(args, filter.Limit, filter.Offset)
+
+	rows, err := r.db.Query(ctx, selectQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: search jobs query: %w", err)
+	}
+	defer rows.Close()
+
+	jobs := []*Job{}
+	for rows.Next() {
+		j := &Job{}
+		if err := rows.Scan(&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
+			&j.Description, &j.Salary, &j.Remote, &j.SourceURL, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("repositories: scan search job row: %w", err)
+		}
+		jobs = append(jobs, j)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repositories: search jobs rows iteration: %w", err)
+	}
+
+	return &JobSearchResult{Jobs: jobs, Total: total}, nil
+}
+
+// MatchJobs scores every job against the user's skills (keyword overlap on
+// title + description) and returns those at or above MinScore, best first.
+func (r *JobRepository) MatchJobs(ctx context.Context, filter SemanticMatchFilter) ([]*MatchScore, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 10
+	}
+	if len(filter.UserSkills) == 0 {
+		return []*MatchScore{}, nil
+	}
+
+	const q = `
+		SELECT id, external_id, title, company, location, description, salary, remote, source_url, created_at, updated_at
+		FROM jobs`
+
+	rows, err := r.db.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: match jobs query: %w", err)
+	}
+	defer rows.Close()
+
+	var matches []*MatchScore
+	for rows.Next() {
+		j := &Job{}
+		if err := rows.Scan(&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
+			&j.Description, &j.Salary, &j.Remote, &j.SourceURL, &j.CreatedAt, &j.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("repositories: scan matched job: %w", err)
+		}
+
+		textToSearch := strings.ToLower(j.Title + " " + j.Description)
+		var matched []string
+		for _, skill := range filter.UserSkills {
+			skillLower := strings.ToLower(strings.TrimSpace(skill))
+			if skillLower != "" && strings.Contains(textToSearch, skillLower) {
+				matched = append(matched, skill)
+			}
+		}
+
+		score := 0.0
+		if len(filter.UserSkills) > 0 {
+			score = float64(len(matched)) / float64(len(filter.UserSkills))
+		}
+		if score >= filter.MinScore {
+			matches = append(matches, &MatchScore{Job: j, Score: score, MatchedOn: matched})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repositories: match jobs rows iteration: %w", err)
+	}
+
+	return matches, nil
+}
+
 func (r *JobRepository) scanOne(ctx context.Context, query string, args ...any) (*Job, error) {
 	row := r.db.QueryRow(ctx, query, args...)
 

@@ -33,8 +33,8 @@ type UpdateApplicationRequest struct {
 func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := requestUserID(r)
+	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
@@ -94,8 +94,8 @@ func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Req
 func (h *ApplicationHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := requestUserID(r)
+	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return

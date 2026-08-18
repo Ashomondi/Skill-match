@@ -47,13 +47,15 @@ func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTMan
 	)
 }
 
-func RegisterSavedJobs(mux *http.ServeMux, handler *handlers.SavedJobsHandler, jwtManager *utils.JWTManager) {
-	auth := middleware.Auth(jwtManager)
-	mux.Handle("/api/saved-jobs", auth(http.HandlerFunc(handler.HandleSavedJobs)))
-	mux.Handle("/api/saved-jobs/", auth(http.HandlerFunc(handler.HandleDeleteSavedJob)))
+func RegisterSavedJobsRoutes(mux *http.ServeMux, h *handlers.SavedJobsHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("/api/saved-jobs", auth(http.HandlerFunc(h.HandleSavedJobs)))
+	mux.Handle("/api/saved-jobs/", auth(http.HandlerFunc(h.HandleDeleteSavedJob)))
 }
-func RegisterApplications(mux *http.ServeMux, handler *handlers.ApplicationHandler, jwtManager *utils.JWTManager) {
-	auth := middleware.Auth(jwtManager)
-	mux.Handle("/api/applications", auth(http.HandlerFunc(handler.HandleCollection)))
-	mux.Handle("/api/applications/", auth(http.HandlerFunc(handler.HandleResource)))
+
+func RegisterApplicationRoutes(mux *http.ServeMux, h *handlers.ApplicationHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("/api/applications", auth(http.HandlerFunc(h.HandleCollection)))
+	mux.Handle("/api/applications/", auth(http.HandlerFunc(h.HandleResource)))
 }
+

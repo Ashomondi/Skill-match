@@ -55,12 +55,13 @@ func main() {
 
 		jobRepo := repositories.NewJobRepository(pool)
 		savedJobs := handlers.NewSavedJobsHandler(services.NewSavedJobService(repositories.NewSavedJobRepository(pool)))
-		routes.RegisterSavedJobs(mux, savedJobs, jwtManager)
-		routes.RegisterApplications(mux,
+		routes.RegisterSavedJobsRoutes(mux, savedJobs, jwtManager)
+		routes.RegisterApplicationRoutes(mux,
 			handlers.NewApplicationHandler(services.NewApplicationService(repositories.NewApplicationRepository(pool))),
 			jwtManager,
 		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
+		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
 
 		if ingestible, ok := interface{}(jobService).(interface {
 			IngestJobs(ctx context.Context) (int, int, error)

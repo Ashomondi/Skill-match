@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"skill-match/backend/models"
+	"skill-match/backend/repositories"
 )
 
 var (
@@ -31,42 +32,41 @@ func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string) (*models.Application, error) {
-	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
-		return nil, ErrApplicationInvalidInput
+
+func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status repositories.ApplicationStatus, notes string) (*models.Application, error) {
+	if jobID == "" {
+		return nil, fmt.Errorf("validation: job_id is required")
+
 	}
 	return s.repo.Create(ctx, userID, jobID)
 }
 
-func (s *ApplicationService) List(ctx context.Context, userID string) ([]*models.Application, error) {
-	if strings.TrimSpace(userID) == "" {
-		return nil, ErrApplicationInvalidInput
-	}
+func (s *ApplicationService) ListApplications(ctx context.Context, userID string) ([]*models.Application, error) {
 	return s.repo.ListByUserID(ctx, userID)
 }
 
-func (s *ApplicationService) ListApplications(ctx context.Context, userID string) ([]*models.Application, error) {
-	return s.List(ctx, userID)
+func (s *ApplicationService) GetApplicationByID(ctx context.Context, id, userID string) (*models.Application, error) {
+	return s.repo.GetByID(ctx, id, userID)
 }
 
-func (s *ApplicationService) GetApplicationByID(ctx context.Context, userID, id string) (*models.Application, error) {
-	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
-		return nil, ErrApplicationInvalidInput
+func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, id, userID string, status repositories.ApplicationStatus, notes string) (*models.Application, error) {
+	if !status.Valid() {
+		return nil, fmt.Errorf("validation: invalid application status")
 	}
 	return s.repo.GetByID(ctx, userID, id)
 }
 
-func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
-	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
-		return nil, ErrApplicationInvalidInput
-	}
+// func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error) {
+// 	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
+// 		return nil, ErrApplicationInvalidInput
+// 	}
 
-	if !isValidApplicationStatus(status) {
-		return nil, fmt.Errorf("%w: invalid application status", ErrApplicationInvalidInput)
-	}
+// 	if !isValidApplicationStatus(status) {
+// 		return nil, fmt.Errorf("%w: invalid application status", ErrApplicationInvalidInput)
+// 	}
 
-	return s.repo.UpdateStatus(ctx, userID, id, status)
-}
+// 	return s.repo.UpdateStatus(ctx, userID, id, status)
+// }
 
 func isValidApplicationStatus(status models.ApplicationStatus) bool {
 	// Evaluates the string representation to stay resilient across model variations
@@ -77,3 +77,8 @@ func isValidApplicationStatus(status models.ApplicationStatus) bool {
 		return false
 	}
 }
+
+func (s *ApplicationService) DeleteApplication(ctx context.Context, id, userID string) error {
+	return s.repo.Delete(ctx, id, userID)
+}
+
