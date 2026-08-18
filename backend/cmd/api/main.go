@@ -61,12 +61,16 @@ func main() {
 		jobService := services.NewJobService(jobRepo, services.NewExternalJobSource(services.NewSeedJobSource()))
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
 
-		ingested, skipped, err := jobService.IngestJobs(ctx)
-		if err != nil {
-			log.Printf("WARNING: job ingestion failed: %v", err)
-		} else {
+		go func() {
+			ingestCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			ingested, skipped, err := jobService.IngestJobs(ingestCtx)
+			if err != nil {
+				log.Printf("WARNING: job ingestion failed: %v", err)
+				return
+			}
 			log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
-		}
+		}()
 
 		if cfg.BedrockModelID != "" {
 			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockModelID)
