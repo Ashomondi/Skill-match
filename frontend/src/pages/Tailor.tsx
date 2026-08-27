@@ -1,11 +1,42 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ChevronLeft, Loader2, RefreshCw, Send } from 'lucide-react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ChevronLeft, Loader2, RefreshCw, Scissors, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { jobsService, Job } from '../services/jobs';
 import { resumeService, Resume } from '../services/resume';
 import { tailoringService } from '../services/tailoring';
 import { applicationService } from '../services/application';
+
+const JobPicker: React.FC = () => {
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => { void (async () => {
+    try { setJobs((await jobsService.search({})).jobs); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Jobs could not be loaded.'); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  return (
+    <AppShell>
+      <Link to="/discover" className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16}/>Back to discover</Link>
+      <h1 className="mt-5 font-serif text-4xl font-bold text-[var(--text-heading)]">Tailor your CV</h1>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">Pick a role and we will tailor your CV to match it. Choose a job below to get started.</p>
+      {loading ? <div className="mt-8 flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={18}/>Loading jobs...</div>
+        : error ? <p role="alert" className="mt-8 text-sm text-[var(--status-rejected)]">{error}</p>
+        : jobs.length === 0 ? <div className="mt-8 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-8 text-center text-sm text-[var(--text-muted)]">No jobs are available right now. <Link to="/discover" className="text-[var(--text-button-fill)]">Browse discover</Link>.</div>
+        : <ul className="mt-8 divide-y divide-[var(--border-hairline)] rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)]">
+            {jobs.map((job) => <li key={job.id} className="flex items-center gap-3 px-5 py-4">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[var(--bg-card)] font-semibold text-[var(--text-heading)]">{job.company.charAt(0).toUpperCase()}</span>
+              <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[var(--text-heading)]">{job.title}</p><p className="truncate text-xs text-[var(--text-muted)]">{job.company} • {job.location}</p></div>
+              <button type="button" onClick={() => navigate(`/discover/${job.id}/tailor`)} className="inline-flex shrink-0 items-center gap-2 rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--btn-primary-text)]"><Scissors size={15}/>Tailor</button>
+            </li>)}
+          </ul>}
+    </AppShell>
+  );
+};
 
 export const Tailor: React.FC = () => {
   const { jobId = '' } = useParams();
@@ -17,13 +48,15 @@ export const Tailor: React.FC = () => {
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => { void (async () => {
+  useEffect(() => { if (!jobId) { setLoading(false); return; } void (async () => {
     try {
       const [loadedJob, resumes] = await Promise.all([jobsService.get(jobId), resumeService.list()]);
       setJob(loadedJob); setResume(resumes[0] || null);
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not load tailoring data.'); }
     finally { setLoading(false); }
   })(); }, [jobId]);
+
+  if (!jobId) return <JobPicker />;
 
   const generate = async () => {
     if (!job || !resume) return;
