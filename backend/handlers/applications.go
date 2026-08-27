@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"skill-match/backend/middleware"
 	"skill-match/backend/models"
 	"skill-match/backend/services"
 )
@@ -19,22 +20,22 @@ func NewApplicationHandler(service *services.ApplicationService) *ApplicationHan
 }
 
 type CreateApplicationRequest struct {
-	JobID  string                 `json:"job_id"`
+	JobID  string                   `json:"job_id"`
 	Status models.ApplicationStatus `json:"status"`
-	Notes  string                 `json:"notes,omitempty"`
+	Notes  string                   `json:"notes,omitempty"`
 }
 
 type UpdateApplicationRequest struct {
 	Status models.ApplicationStatus `json:"status"`
-	Notes  string                 `json:"notes,omitempty"`
+	Notes  string                   `json:"notes,omitempty"`
 }
 
 // HandleCollection handles POST /api/applications and GET /api/applications
 func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok || strings.TrimSpace(userID) == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
@@ -94,8 +95,8 @@ func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Req
 func (h *ApplicationHandler) HandleResource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := middleware.GetUserID(r)
+	if !ok || strings.TrimSpace(userID) == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
