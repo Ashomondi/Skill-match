@@ -61,6 +61,12 @@ func main() {
 			jwtManager,
 		)
 		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
+		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
+		routes.RegisterRecommendations(
+			mux,
+			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool))),
+			jwtManager,
+		)
 
 		if ingestible, ok := interface{}(jobService).(interface {
 			IngestJobs(ctx context.Context) (int, int, error)
@@ -120,22 +126,22 @@ func main() {
 
 	// ... setup handlers, services, and route registrations above ...
 
-    healthHandler := handlers.NewHealthHandler(pool, s3Client)
-    routes.RegisterAll(mux,
-        func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
-    )
+	healthHandler := handlers.NewHealthHandler(pool, s3Client)
+	routes.RegisterAll(mux,
+		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
+	)
 
-    // 👇 Middleware chain setup belongs here
-  handler := middleware.Chain(mux,
-	middleware.Logging,
-	middleware.Recovery,
-	middleware.CORS(cfg.AllowedOrigin), // Pass cfg.AllowedOrigin (or "*" / your origin string)
-)
+	// 👇 Middleware chain setup belongs here
+	handler := middleware.Chain(mux,
+		middleware.Logging,
+		middleware.Recovery,
+		middleware.CORS(cfg.AllowedOrigin), // Pass cfg.AllowedOrigin (or "*" / your origin string)
+	)
 
-    log.Printf("listening on :%s", cfg.Port)
-    if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
-        log.Fatal(err)
-    }
+	log.Printf("listening on :%s", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
+		log.Fatal(err)
+	}
 }
 func jwtSecret(cfg *config.Config) string {
 	if cfg.JWTSecret != "" {
