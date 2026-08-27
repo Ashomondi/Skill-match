@@ -16,9 +16,9 @@ func NewApplicationRepository(pool *pgxpool.Pool) *ApplicationRepository {
 	return &ApplicationRepository{pool: pool}
 }
 
-func (r *ApplicationRepository) Create(ctx context.Context, userID, jobID string, status models.ApplicationStatus) (*models.Application, error) {
+func (r *ApplicationRepository) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
 	// ... database insert implementation using r.pool ...
-	return &models.Application{UserID: userID, JobID: jobID, Status: status}, nil
+	return &models.Application{UserID: userID, JobID: jobID}, nil
 }
 
 func (r *ApplicationRepository) GetByID(ctx context.Context, userID, id string) (*models.Application, error) {

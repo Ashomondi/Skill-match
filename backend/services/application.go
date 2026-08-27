@@ -16,7 +16,7 @@ var (
 
 // ApplicationRepository defines the interface for repository access.
 type ApplicationRepository interface {
-	Create(ctx context.Context, userID, jobID string, status models.ApplicationStatus) (*models.Application, error)
+	Create(ctx context.Context, userID, jobID string) (*models.Application, error)
 	GetByID(ctx context.Context, userID, id string) (*models.Application, error)
 	UpdateStatus(ctx context.Context, userID, id string, status models.ApplicationStatus) (*models.Application, error)
 	Delete(ctx context.Context, userID, id string) error
@@ -32,14 +32,11 @@ func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status models.ApplicationStatus) (*models.Application, error) {
+func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status ...models.ApplicationStatus) (*models.Application, error) {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
 		return nil, ErrApplicationInvalidInput
 	}
-	if !isValidApplicationStatus(status) {
-		status = models.ApplicationStatus("applied")
-	}
-	return s.repo.Create(ctx, userID, jobID, status)
+	return s.repo.Create(ctx, userID, jobID)
 }
 
 func (s *ApplicationService) DeleteApplication(ctx context.Context, userID, id string) error {
