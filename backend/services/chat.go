@@ -90,7 +90,7 @@ func (s *ChatService) SendMessage(
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: failed to store user message: %v",
+			"%w: failed to store user message: %w",
 			ErrChatService,
 			err,
 		)
@@ -107,7 +107,7 @@ func (s *ChatService) SendMessage(
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: failed to generate AI response: %v",
+			"%w: failed to generate AI response: %w",
 			ErrChatService,
 			err,
 		)
@@ -132,7 +132,7 @@ func (s *ChatService) SendMessage(
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: failed to store assistant response: %v",
+			"%w: failed to store assistant response: %w",
 			ErrChatService,
 			err,
 		)

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"skill-match/backend/middleware"
 	"skill-match/backend/services"
 )
 
@@ -24,16 +25,14 @@ func (h *RecommendationHandler) GetPersonalizedRecommendations(w http.ResponseWr
 		return
 	}
 
-	// Retrieve authenticated user from header/context
-	requestingUserID := r.Header.Get("X-User-ID")
-	targetUserID := r.URL.Query().Get("user_id")
-
-	if requestingUserID == "" || targetUserID == "" {
+	requestingUserID, ok := middleware.GetUserID(r)
+	if !ok {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "missing user_id or authentication context"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "authentication required"})
 		return
 	}
+	targetUserID := requestingUserID
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {

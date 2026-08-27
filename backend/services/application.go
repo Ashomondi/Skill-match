@@ -31,11 +31,24 @@ func NewApplicationService(repo ApplicationRepository) *ApplicationService {
 	return &ApplicationService{repo: repo}
 }
 
-func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string) (*models.Application, error) {
+func (s *ApplicationService) CreateApplication(ctx context.Context, userID, jobID string, status ...models.ApplicationStatus) (*models.Application, error) {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
 		return nil, ErrApplicationInvalidInput
 	}
 	return s.repo.Create(ctx, userID, jobID)
+}
+
+func (s *ApplicationService) DeleteApplication(ctx context.Context, userID, id string) error {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(userID) == "" {
+		return ErrApplicationInvalidInput
+	}
+	deleter, ok := s.repo.(interface {
+		Delete(context.Context, string, string) error
+	})
+	if !ok {
+		return errors.New("application deletion is not supported")
+	}
+	return deleter.Delete(ctx, userID, id)
 }
 
 func (s *ApplicationService) List(ctx context.Context, userID string) ([]*models.Application, error) {

@@ -36,6 +36,34 @@ func NewJobService(
 	}
 }
 
+func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
+	jobs, err := s.source.FetchJobs(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	ingested, skipped := 0, 0
+	for _, source := range jobs {
+		exists, err := s.repo.ExistsByExternalID(ctx, source.ExternalID)
+		if err != nil {
+			return ingested, skipped, err
+		}
+		if exists {
+			skipped++
+			continue
+		}
+		_, err = s.repo.Create(ctx, &repositories.Job{ExternalID: source.ExternalID, Title: source.Title, Company: source.Company, Location: source.Location, Description: source.Description, Salary: source.Salary, Remote: source.Remote, SourceURL: source.SourceURL})
+		if err != nil {
+			return ingested, skipped, err
+		}
+		ingested++
+	}
+	return ingested, skipped, nil
+}
+
+func (s *JobService) GetJob(ctx context.Context, id string) (*repositories.Job, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *JobService) SearchJobs(ctx context.Context, filter repositories.JobSearchFilter) (*repositories.JobSearchResult, error) {
 	return s.repo.Search(ctx, filter)
 }

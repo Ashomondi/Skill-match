@@ -34,10 +34,17 @@ const normalizeSavedJob = (item: any): SavedJob => {
 
 const errorMessage = async (response: Response, fallback: string) => {
   const body = await response.json().catch(() => ({}));
-  return body.error || body.message || fallback;
+  if (typeof body.error === "string") return body.error;
+  if (typeof body.error?.message === "string") return body.error.message;
+  return typeof body.message === "string" ? body.message : fallback;
 };
 
 export const savedJobsService = {
+  async save(jobId: string): Promise<void> {
+    const response = await fetch(API_BASE_URL + "/saved-jobs", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) });
+    if (!response.ok) throw new Error(await errorMessage(response, "The job could not be saved."));
+  },
+
   async list(): Promise<SavedJob[]> {
     const response = await fetch(`${API_BASE_URL}/saved-jobs`, { headers: headers() });
     if (!response.ok) throw new Error(await errorMessage(response, 'Saved jobs could not be loaded.'));

@@ -18,7 +18,22 @@ const normalize = (item: any): Application => {
   };
 };
 
+const requestError = async (response: Response, fallback: string) => { const body = await response.json().catch(() => null); return body?.error?.message || body?.error || body?.message || fallback; };
+
 export const applicationService = {
+  async create(jobId: string): Promise<Application> {
+    const token = localStorage.getItem("token");
+    const response = await fetch(API_BASE_URL + "/applications", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify({ job_id: jobId }) });
+    if (!response.ok) throw new Error(await requestError(response, "Application could not be submitted."));
+    return normalize(await response.json());
+  },
+
+  async updateStatus(id: string, status: ApplicationStatus): Promise<Application> {
+    const token = localStorage.getItem("token");
+    const response = await fetch(API_BASE_URL + "/applications/" + encodeURIComponent(id) + "/status", { method: "PATCH", headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify({ status }) });
+    if (!response.ok) throw new Error(await requestError(response, "Application status could not be updated."));
+    return normalize(await response.json());
+  },
   async list(): Promise<Application[]> {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_BASE_URL}/applications`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });

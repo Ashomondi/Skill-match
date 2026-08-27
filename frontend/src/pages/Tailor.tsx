@@ -1,2 +1,45 @@
-import React from 'react';import { Link,useParams }from'react-router-dom';import { ChevronLeft, Info }from'lucide-react';import { AppShell }from'../components/AppShell';
-const original='Experienced Product Manager with over 7 years of expertise in leading cross-functional teams to deliver B2B SaaS products. Proven track record of increasing user engagement and driving product strategy from conception to launch.';export const Tailor:React.FC=()=>{const {jobId}=useParams();return <AppShell><Link to={`/discover/${jobId}`} className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16}/>Back to job details</Link><h1 className="mt-5 font-serif text-4xl font-bold text-[var(--text-heading)]">Your tailored CV</h1><div className="mt-6 grid gap-5 lg:grid-cols-2"><section className="rounded-xl border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-6"><div className="flex justify-between"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">Original – Master Profile</h2><span className="text-xs">Read only</span></div><h3 className="mt-7 text-sm font-bold">PROFESSIONAL SUMMARY</h3><p className="mt-3 leading-7">{original}</p><h3 className="mt-7 text-sm font-bold">EXPERIENCE</h3><p className="mt-3">Lead Product Manager <span className="float-right">2020 – Present</span></p></section><section className="rounded-xl border border-[var(--accent-gold)] bg-[var(--bg-secondary)] p-6"><div className="flex justify-between"><h2 className="font-serif text-2xl font-bold text-[var(--text-heading)]">Tailored – Acme Corp</h2><span className="rounded-full bg-[var(--tab-active-bg)] px-2 py-1 text-xs text-[var(--tab-active-text)]">92% Match</span></div><h3 className="mt-7 text-sm font-bold">PROFESSIONAL SUMMARY</h3><p className="mt-3 leading-7">Experienced Product Manager with over 7 years of expertise in <mark className="bg-[var(--bg-card)] text-inherit">delivering compliant, user-centric healthcare solutions <sup>1</sup></mark>. Proven track record of increasing user engagement and <mark className="bg-[var(--bg-card)] text-inherit">leveraging healthcare data analytics <sup>2</sup></mark>.</p><h3 className="mt-7 text-sm font-bold">EXPERIENCE</h3><p className="mt-3"><mark className="bg-[var(--bg-card)] text-inherit">Led a team to launch a secure patient data analytics dashboard <sup>3</sup></mark></p></section></div><section className="mt-5 rounded-lg bg-[var(--bg-card)] p-5"><h2 className="font-serif text-xl font-bold text-[var(--text-heading)]">Change rationale</h2><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-[var(--text-insight)]"><li>Aligns your summary to the healthcare domain requirement.</li><li>Highlights relevant data analytics experience.</li><li>Connects your dashboard work to secure patient data.</li></ol></section><div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-hairline)] pt-5"><span className="inline-flex items-center gap-2 text-sm"><Info size={16}/>Review the highlighted changes before submitting.</span><div className="flex gap-3"><button className="rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm">Regenerate</button><button className="rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm">Edit manually</button><button className="rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-sm text-[var(--btn-primary-text)]">Submit application</button></div></div></AppShell>};
+import React, { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ChevronLeft, Loader2, RefreshCw, Send } from 'lucide-react';
+import { AppShell } from '../components/AppShell';
+import { jobsService, Job } from '../services/jobs';
+import { resumeService, Resume } from '../services/resume';
+import { tailoringService } from '../services/tailoring';
+import { applicationService } from '../services/application';
+
+export const Tailor: React.FC = () => {
+  const { jobId = '' } = useParams();
+  const [job, setJob] = useState<Job | null>(null);
+  const [resume, setResume] = useState<Resume | null>(null);
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => { void (async () => {
+    try {
+      const [loadedJob, resumes] = await Promise.all([jobsService.get(jobId), resumeService.list()]);
+      setJob(loadedJob); setResume(resumes[0] || null);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not load tailoring data.'); }
+    finally { setLoading(false); }
+  })(); }, [jobId]);
+
+  const generate = async () => {
+    if (!job || !resume) return;
+    setWorking(true); setError('');
+    try { setContent(await tailoringService.generate({ resumeId: resume.id, jobTitle: job.title, company: job.company, jobDescription: job.description, currentContent: content })); }
+    catch (err) { setError(err instanceof Error ? err.message : 'CV tailoring failed.'); }
+    finally { setWorking(false); }
+  };
+
+  const submit = async () => {
+    if (!job) return;
+    setWorking(true); setError('');
+    try { await applicationService.create(job.id); setSubmitted(true); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Application could not be submitted.'); }
+    finally { setWorking(false); }
+  };
+
+  return <AppShell><Link to={`/discover/${jobId}`} className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16}/>Back to job details</Link><h1 className="mt-5 font-serif text-4xl font-bold text-[var(--text-heading)]">Tailor your CV</h1>{loading ? <div className="mt-8 flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={18}/>Loading job and resume...</div> : error && !job ? <p className="mt-8 text-sm text-[var(--status-rejected)]">{error}</p> : <><p className="mt-2 text-sm text-[var(--text-muted)]">{job?.title} at {job?.company}</p>{!resume && <p className="mt-6 text-sm">Upload a resume before tailoring. <Link className="text-[var(--text-button-fill)]" to="/resume">Open resume manager</Link></p>} {resume && <section className="mt-6 max-w-4xl"><textarea value={content} onChange={event => setContent(event.target.value)} placeholder="Generate a tailored CV, then review and edit it here." className="min-h-[30rem] w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-input)] p-5 text-sm leading-6 outline-none focus:border-[var(--accent-gold)]" aria-label="Tailored CV content" />{error && <p className="mt-3 text-sm text-[var(--status-rejected)]">{error}</p>}<div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={() => void generate()} disabled={working} className="inline-flex items-center gap-2 rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={16}/>{content ? 'Regenerate' : 'Generate tailored CV'}</button><button type="button" onClick={() => void submit()} disabled={working || !content || submitted} className="inline-flex items-center gap-2 rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-sm text-[var(--btn-primary-text)] disabled:opacity-50"><Send size={16}/>{submitted ? 'Application submitted' : 'Submit application'}</button></div></section>}</>}</AppShell>;
+};

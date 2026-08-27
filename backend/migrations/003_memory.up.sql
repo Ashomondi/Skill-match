@@ -59,7 +59,7 @@ CREATE INDEX IF NOT EXISTS embeddings_user_id_idx ON embeddings (user_id);
 -- and services/memory.go (Evans, Issue 13) query against. cosine distance
 -- matches Titan embeddings' intended similarity metric.
 CREATE VECTOR INDEX IF NOT EXISTS embeddings_vector_idx
-    ON embeddings (vector vector_cosine_ops);
+    ON embeddings (vector);
 
 COMMENT ON TABLE embeddings IS 'Vector embeddings for resumes, conversations, and jobs; polymorphic via source_type/source_id.';
 COMMENT ON COLUMN embeddings.vector IS 'Fixed at 1536 dims (Titan Embeddings V2). Change requires a new migration + backfill if the model changes.';

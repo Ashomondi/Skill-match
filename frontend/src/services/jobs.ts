@@ -10,6 +10,9 @@ export interface Job {
   salary?: string;
   postedAt?: string;
   matchScore?: number;
+  description?: string;
+  remote?: boolean;
+  sourceUrl?: string;
 }
 
 export interface JobSearchParams {
@@ -24,6 +27,17 @@ export interface JobSearchResult {
   total: number;
 }
 
+// Job sources return trusted formatting markup, but it must never be injected
+// into the page. Decode the markup into readable text while preserving breaks.
+export const formatJobDescription = (value?: string): string => {
+  if (!value) return '';
+  const withBreaks = value
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/(p|div|li|h[1-6])\s*>/gi, '\n');
+  const doc = new DOMParser().parseFromString(withBreaks, 'text/html');
+  return (doc.body.textContent || '').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
+};
+
 const normalizeJob = (item: any): Job => ({
   id: String(item.id ?? item.job_id),
   title: item.title ?? item.job_title ?? 'Untitled role',
@@ -34,9 +48,20 @@ const normalizeJob = (item: any): Job => ({
   salary: item.salary ?? item.salary_range,
   postedAt: item.posted_at ?? item.created_at ?? item.postedAt,
   matchScore: Number(item.match_score ?? item.matchScore) || undefined,
+  description: item.description,
+  remote: Boolean(item.remote),
+  sourceUrl: item.source_url ?? item.url,
 });
 
 export const jobsService = {
+  async get(id: string): Promise<Job> {
+    const token = localStorage.getItem("token");
+    const response = await fetch(API_BASE_URL + "/jobs/" + encodeURIComponent(id), { headers: token ? { Authorization: "Bearer " + token } : {} });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(body?.error?.message || body?.error || body?.message || "Job could not be loaded.");
+    return normalizeJob(body?.data ?? body);
+  },
+
   async search(params: JobSearchParams = {}): Promise<JobSearchResult> {
     const searchParams = new URLSearchParams();
     if (params.query?.trim()) searchParams.set('q', params.query.trim());
@@ -45,7 +70,7 @@ export const jobsService = {
     if (params.workType) searchParams.set('work_type', params.workType);
 
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/jobs${searchParams.size ? `?${searchParams}` : ''}`, {
+    const response = await fetch(`${API_BASE_URL}/jobs/search${searchParams.size ? `?${searchParams}` : ''}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     const body = await response.json().catch(() => null);

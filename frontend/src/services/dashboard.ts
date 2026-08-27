@@ -12,10 +12,9 @@ const listFrom = (body: any): any[] => { const inner = unwrap(body); return Arra
 
 export const dashboardService = {
   async getDashboard(): Promise<DashboardData> {
-    const [applicationsResult, savedResult] = await Promise.allSettled([request('/applications'), request('/saved-jobs')]);
-    if (applicationsResult.status === 'rejected' && savedResult.status === 'rejected') throw applicationsResult.reason;
-    const applications = applicationsResult.status === 'fulfilled' ? listFrom(applicationsResult.value) : [];
-    const savedList = savedResult.status === 'fulfilled' ? listFrom(savedResult.value) : [];
+    const [applicationsBody, savedBody] = await Promise.all([request('/applications'), request('/saved-jobs')]);
+    const applications = listFrom(applicationsBody);
+    const savedList = listFrom(savedBody);
     const savedJobs = savedList.length;
     const byStatus = emptyCounts();
     const normalized = applications.map((application: any) => {
