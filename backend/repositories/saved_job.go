@@ -2,86 +2,82 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"skill-match/backend/models"
 )
 
-type SavedJob struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	JobID     string    `json:"job_id"`
-	CreatedAt time.Time `json:"created_at"`
-	Job       *Job      `json:"job,omitempty"`
-}
+var (
+	ErrSavedJobNotFound     = errors.New("repositories: saved job not found")
+	ErrSavedJobDuplicate    = errors.New("repositories: job already saved")
+	ErrInvalidSavedJobInput = errors.New("repositories: invalid saved job input")
+)
 
-type SavedJobRepository struct {
-	db *pgxpool.Pool
-}
+type SavedJobRepository struct{ db *pgxpool.Pool }
 
-func NewSavedJobRepository(db *pgxpool.Pool) *SavedJobRepository {
-	return &SavedJobRepository{db: db}
-}
+func NewSavedJobRepository(db *pgxpool.Pool) *SavedJobRepository { return &SavedJobRepository{db: db} }
 
-func (r *SavedJobRepository) SaveJob(ctx context.Context, userID, jobID string) (*SavedJob, error) {
-	query := `
-		INSERT INTO saved_jobs (user_id, job_id)
-		VALUES ($1, $2)
-		RETURNING id, user_id, job_id, created_at
-	`
-	sj := &SavedJob{}
-	err := r.db.QueryRow(ctx, query, userID, jobID).Scan(&sj.ID, &sj.UserID, &sj.JobID, &sj.CreatedAt)
-	if err != nil {
+func (r *SavedJobRepository) Create(ctx context.Context, userID, jobID string) (*models.SavedJob, error) {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
+		return nil, ErrInvalidSavedJobInput
+	}
+	const q = `INSERT INTO saved_jobs (user_id, job_id) VALUES ($1, $2) RETURNING saved_at`
+	out := &models.SavedJob{UserID: userID, JobID: jobID}
+	if err := r.db.QueryRow(ctx, q, userID, jobID).Scan(&out.SavedAt); err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrSavedJobDuplicate
+		}
+		if isForeignKeyViolation(err) {
+			return nil, ErrJobNotFound
+		}
 		return nil, fmt.Errorf("repositories: save job: %w", err)
 	}
-	return sj, nil
+	return out, nil
 }
 
-func (r *SavedJobRepository) GetSavedJobsByUserID(ctx context.Context, userID string) ([]*SavedJob, error) {
-	query := `
-		SELECT sj.id, sj.user_id, sj.job_id, sj.created_at,
-		       j.id, j.external_id, j.title, j.company, j.location, j.description, j.salary, j.remote, j.source_url, j.created_at, j.updated_at
-		FROM saved_jobs sj
-		JOIN jobs j ON sj.job_id = j.id
-		WHERE sj.user_id = $1
-		ORDER BY sj.created_at DESC
-	`
-	rows, err := r.db.Query(ctx, query, userID)
+func (r *SavedJobRepository) ListByUserID(ctx context.Context, userID string) ([]*models.SavedJob, error) {
+	if strings.TrimSpace(userID) == "" {
+		return nil, ErrInvalidSavedJobInput
+	}
+	const q = `SELECT s.user_id, s.job_id, s.saved_at, j.id, j.external_id, j.title, j.company, j.location, j.description, j.salary, j.remote, j.source_url, j.created_at, j.updated_at FROM saved_jobs s JOIN jobs j ON j.id = s.job_id WHERE s.user_id = $1 ORDER BY s.saved_at DESC LIMIT $2`
+	rows, err := r.db.Query(ctx, q, userID, 100)
 	if err != nil {
-		return nil, fmt.Errorf("repositories: get saved jobs: %w", err)
+		return nil, fmt.Errorf("repositories: list saved jobs: %w", err)
 	}
 	defer rows.Close()
-
-	var results []*SavedJob
+	var out []*models.SavedJob
 	for rows.Next() {
-		sj := &SavedJob{}
-		j := &Job{}
-		if err := rows.Scan(
-			&sj.ID, &sj.UserID, &sj.JobID, &sj.CreatedAt,
-			&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
-			&j.Description, &j.Salary, &j.Remote, &j.SourceURL,
-			&j.CreatedAt, &j.UpdatedAt,
-		); err != nil {
+		s := &models.SavedJob{Job: &models.Job{}}
+		if err := rows.Scan(&s.UserID, &s.JobID, &s.SavedAt, &s.Job.ID, &s.Job.ExternalID, &s.Job.Title, &s.Job.Company, &s.Job.Location, &s.Job.Description, &s.Job.Salary, &s.Job.Remote, &s.Job.SourceURL, &s.Job.CreatedAt, &s.Job.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("repositories: scan saved job: %w", err)
 		}
-		sj.Job = j
-		results = append(results, sj)
+		out = append(out, s)
 	}
-	return results, nil
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("repositories: iterate saved jobs: %w", err)
+	}
+	return out, nil
 }
 
-func (r *SavedJobRepository) DeleteSavedJob(ctx context.Context, id, userID string) error {
-	query := `
-		DELETE FROM saved_jobs
-		WHERE id = $1 AND user_id = $2
-	`
-	cmd, err := r.db.Exec(ctx, query, id, userID)
+func (r *SavedJobRepository) Delete(ctx context.Context, userID, jobID string) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(jobID) == "" {
+		return ErrInvalidSavedJobInput
+	}
+	const q = `DELETE FROM saved_jobs WHERE user_id = $1 AND job_id = $2`
+	tag, err := r.db.Exec(ctx, q, userID, jobID)
 	if err != nil {
 		return fmt.Errorf("repositories: delete saved job: %w", err)
 	}
-	if cmd.RowsAffected() == 0 {
-		return fmt.Errorf("not_found")
+	if tag.RowsAffected() == 0 {
+		return ErrSavedJobNotFound
 	}
 	return nil
+}
+
+func isForeignKeyViolation(err error) bool {
+	var pgErr interface{ SQLState() string }
+	return errors.As(err, &pgErr) && pgErr.SQLState() == "23503"
 }

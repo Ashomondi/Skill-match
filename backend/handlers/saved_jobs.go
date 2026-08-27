@@ -2,111 +2,96 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
+	"skill-match/backend/middleware"
+	"skill-match/backend/models"
 	"skill-match/backend/services"
+	"skill-match/backend/utils"
 )
 
-type SavedJobsHandler struct {
-	service *services.SavedJobService
-}
+type SavedJobsHandler struct{ service *services.SavedJobService }
 
 func NewSavedJobsHandler(service *services.SavedJobService) *SavedJobsHandler {
 	return &SavedJobsHandler{service: service}
 }
 
-type SaveJobRequest struct {
+type saveJobRequest struct {
 	JobID string `json:"job_id"`
 }
 
-func (h *SavedJobsHandler) HandleSavedJobs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// Authentication check
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+func (h *SavedJobsHandler) Save(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		writeSavedJobError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	switch r.Method {
-	case http.MethodPost:
-		var req SaveJobRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.JobID) == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "job_id is required"})
-			return
-		}
-
-		sj, err := h.service.SaveJob(r.Context(), userID, req.JobID)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to save job"})
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(sj)
-
-	case http.MethodGet:
-		jobs, err := h.service.GetSavedJobs(r.Context(), userID)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to retrieve saved jobs"})
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"saved_jobs": jobs,
-			"total":      len(jobs),
-		})
-
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+	var input saveJobRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil || strings.TrimSpace(input.JobID) == "" {
+		writeSavedJobError(w, http.StatusBadRequest, "a valid job_id is required")
+		return
 	}
+	saved, err := h.service.Save(r.Context(), userID, input.JobID)
+	if err != nil {
+		h.writeError(w, err)
+		return
+	}
+	utils.WriteSuccess(w, http.StatusCreated, saved)
 }
 
-func (h *SavedJobsHandler) HandleDeleteSavedJob(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if r.Method != http.MethodDelete {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+func (h *SavedJobsHandler) List(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		writeSavedJobError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
-		return
-	}
-
-	// Extract ID from path: /api/saved-jobs/{id}
-	path := strings.TrimPrefix(r.URL.Path, "/api/saved-jobs/")
-	id := strings.TrimSpace(path)
-	if id == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "saved job ID required"})
-		return
-	}
-
-	err := h.service.DeleteSavedJob(r.Context(), id, userID)
+	items, err := h.service.List(r.Context(), userID)
 	if err != nil {
-		if err.Error() == "not_found" {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "saved job not found or not owned by user"})
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "failed to delete saved job"})
+		h.writeError(w, err)
 		return
 	}
+	if items == nil {
+		items = make([]*models.SavedJob, 0)
+	}
+	utils.WriteSuccess(w, http.StatusOK, items)
+}
 
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"message": "saved job deleted successfully"})
+func (h *SavedJobsHandler) Remove(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.GetUserID(r)
+	if !ok {
+		writeSavedJobError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if err := h.service.Remove(r.Context(), userID, r.PathValue("job_id")); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *SavedJobsHandler) writeError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, services.ErrSavedJobInvalidInput):
+		writeSavedJobError(w, http.StatusBadRequest, "a valid job ID is required")
+	case errors.Is(err, services.ErrSavedJobDuplicate):
+		writeSavedJobError(w, http.StatusConflict, "job is already saved")
+	case errors.Is(err, services.ErrSavedJobNotFound):
+		writeSavedJobError(w, http.StatusNotFound, "job or saved job not found")
+	default:
+		writeSavedJobError(w, http.StatusInternalServerError, "failed to manage saved jobs")
+	}
+}
+func (h *SavedJobsHandler) HandleSavedJobs(w http.ResponseWriter, r *http.Request) { h.List(w, r) }
+func (h *SavedJobsHandler) HandleDeleteSavedJob(w http.ResponseWriter, r *http.Request) {
+	h.Remove(w, r)
+}
+
+func writeSavedJobError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

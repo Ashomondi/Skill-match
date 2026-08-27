@@ -15,6 +15,7 @@ var allowedResumeExtensions = map[string]string{
 	".pdf":  "application/pdf",
 	".doc":  "application/msword",
 	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	".txt":  "text/plain",
 }
 
 var magicBytes = map[string][]byte{
@@ -34,7 +35,7 @@ func ValidateResumeFile(filename, contentType string, size int64, content []byte
 	ext := strings.ToLower(filepath.Ext(filename))
 	expectedType, ok := allowedResumeExtensions[ext]
 	if !ok {
-		return fmt.Errorf("unsupported file type %q: only .pdf, .doc, .docx are allowed", ext)
+		return fmt.Errorf("unsupported file type %q: only .pdf, .doc, .docx, and .txt are allowed", ext)
 	}
 
 	if contentType != expectedType {
@@ -50,6 +51,12 @@ func ValidateResumeFile(filename, contentType string, size int64, content []byte
 
 func ValidateFileContent(filename string, content []byte) error {
 	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == ".txt" {
+		if strings.IndexByte(string(content), 0) >= 0 {
+			return fmt.Errorf("text file contains binary data")
+		}
+		return nil
+	}
 	signature, ok := magicBytes[ext]
 	if !ok {
 		return fmt.Errorf("no known signature for extension %q", ext)
