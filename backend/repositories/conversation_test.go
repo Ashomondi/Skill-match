@@ -18,7 +18,7 @@ import (
 // Issue #41 — conversation persistence workflow.
 //
 // Build-tagged and env-guarded so it never runs in a normal `go test ./...`
-// or CI without infrastructure. Provide TEST_DATABASE_URL (a CockroachDB dsn)
+// or CI without infrastructure. Provide TEST_DATABASE_URL (a PostgreSQL dsn)
 // and run with:
 //
 //	go test -tags integration ./repositories -run TestConversation -v
@@ -31,7 +31,7 @@ func connectTestPool(t *testing.T) *pgxpool.Pool {
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
+		t.Fatalf("connect to postgres: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool

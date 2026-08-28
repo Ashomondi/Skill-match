@@ -18,7 +18,7 @@ import (
 // Issue #41 — persistent memory workflow: information stored during one
 // conversation can be recalled and used during a later conversation.
 //
-// Build-tagged and env-guarded. Provide TEST_DATABASE_URL (a CockroachDB dsn)
+// Build-tagged and env-guarded. Provide TEST_DATABASE_URL (a PostgreSQL dsn)
 // and run with:
 //
 //	go test -tags integration ./services -run TestMemory -v
@@ -31,7 +31,7 @@ func memoryTestPool(t *testing.T) *pgxpool.Pool {
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
+		t.Fatalf("connect to postgres: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool

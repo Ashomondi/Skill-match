@@ -19,7 +19,7 @@ var (
 )
 
 // ResumeRepository provides persistence operations for resumes backed by
-// CockroachDB. It operates on the canonical models.Resume type.
+// PostgreSQL. It operates on the canonical models.Resume type.
 type ResumeRepository struct {
 	db *pgxpool.Pool
 }

@@ -4,14 +4,14 @@
 
 CREATE TABLE IF NOT EXISTS users (
     id              UUID            NOT NULL DEFAULT gen_random_uuid(),
-    email           STRING          NOT NULL,
-    password_hash   STRING          NOT NULL,
-    full_name       STRING          NOT NULL DEFAULT '',
-    is_active       BOOL            NOT NULL DEFAULT true,
+    email           TEXT            NOT NULL,
+    password_hash   TEXT            NOT NULL,
+    full_name       TEXT            NOT NULL DEFAULT '',
+    is_active       BOOLEAN         NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ     NOT NULL DEFAULT now(),
 
-    CONSTRAINT "primary" PRIMARY KEY (id),
+    PRIMARY KEY (id),
     CONSTRAINT users_email_unique UNIQUE (email)
 );
 

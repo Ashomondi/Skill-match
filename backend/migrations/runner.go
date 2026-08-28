@@ -33,7 +33,7 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 
 	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version    STRING        NOT NULL PRIMARY KEY,
+		version    TEXT          NOT NULL PRIMARY KEY,
 		applied_at TIMESTAMPTZ   NOT NULL DEFAULT now()
 	)`); err != nil {
 		return fmt.Errorf("migrations: ensure schema_migrations table: %w", err)
@@ -100,14 +100,11 @@ func appliedVersions(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, 
 
 // applyOne executes a single migration and records its version on success.
 //
-// Note: migrations are intentionally NOT wrapped in a pgx transaction.
-// CockroachDB refuses transactional execution of certain DDL (e.g. vector
-// indexes, which trigger "auto-committing transaction before processing
-// DDL"), so the whole file would deadlock inside BEGIN/COMMIT. Instead we
-// run the file exactly as the SQL CLI would; the migration files are written
-// idempotently (IF NOT EXISTS everywhere) so a failure that leaves partial
-// state is safe to re-run, and an unrecorded version is retried on the next
-// startup.
+// Note: migrations are intentionally NOT wrapped in a transaction. The
+// files are written idempotently (IF NOT EXISTS everywhere) so a failure
+// that leaves partial state is safe to re-run, and an unrecorded version
+// is retried on the next startup. Running as a single multi-statement
+// Exec keeps behavior identical to feeding the file to the SQL CLI.
 func applyOne(ctx context.Context, pool *pgxpool.Pool, version, body string) error {
 	if _, err := pool.Exec(ctx, body); err != nil {
 		return fmt.Errorf("execute migration: %w", err)

@@ -10,8 +10,9 @@ import (
 	"time"
 )
 
-// MCPClient talks to CockroachDB's Managed MCP Server, giving the agent a
-// secure, authenticated way to query the memory layer mid-conversation.
+// MCPClient talks to an MCP server (originally CockroachDB's Managed MCP
+// Server), giving the agent a secure, authenticated way to query the
+// memory layer mid-conversation.
 type MCPClient struct {
 	httpClient *http.Client
 	endpoint   string

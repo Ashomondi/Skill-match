@@ -1,8 +1,9 @@
 # SkillMatch
 
 An AI-powered job-search assistant with **persistent agentic memory**. Built
-for the CockroachDB × AWS hackathon: CockroachDB is the memory layer, Amazon
-Bedrock is the AI, and resume files are stored in S3 (MinIO locally).
+for the CockroachDB × AWS hackathon and migrated to PostgreSQL: PostgreSQL
+(pgvector) is the memory layer, Amazon Bedrock is the AI, and resume files
+are stored in S3 (MinIO locally).
 
 ## Stack
 
@@ -10,7 +11,7 @@ Bedrock is the AI, and resume files are stored in S3 (MinIO locally).
 | ----------- | --------------------------------- |
 | Frontend    | React + Vite + TypeScript         |
 | Backend     | Go (`net/http`)                   |
-| Database    | CockroachDB (PostgreSQL-compatible) |
+| Database    | PostgreSQL (pgvector)             |
 | Object store| Amazon S3 / MinIO (S3-compatible) |
 | AI          | Amazon Bedrock (planned)          |
 | Auth        | JWT (HS256)                       |
@@ -27,7 +28,9 @@ docs/      architecture, API, database, contributor docs
 
 - Go 1.24+
 - Node.js 18+ and npm
-- A CockroachDB cluster (local, or CockroachDB Cloud)
+- A PostgreSQL 16+ database with the `pgvector` extension (see
+  [`scripts/setup_postgres.sh`](scripts/setup_postgres.sh) for a one-command
+  local container)
 - S3-compatible object storage (MinIO for local dev, or Amazon S3)
 
 ## Setup
@@ -36,8 +39,16 @@ docs/      architecture, API, database, contributor docs
 
 The server applies migrations automatically on startup (see
 [`backend/migrations/runner.go`](backend/migrations/runner.go)); applied
-versions are tracked in the `schema_migrations` table. You only need to create
-the database:
+versions are tracked in the `schema_migrations` table. The `pgvector`
+extension is enabled by migration `003`.
+
+For local development, spin up a pgvector-enabled container:
+
+```sh
+./scripts/setup_postgres.sh
+```
+
+or create the database manually:
 
 ```sql
 CREATE DATABASE skillmatch;
@@ -56,7 +67,7 @@ Environment variables (`backend/.env`):
 | Variable             | Required | Default     | Description                                  |
 | -------------------- | -------- | ----------- | -------------------------------------------- |
 | `PORT`               | no       | `8080`      | HTTP listen port                             |
-| `DATABASE_URL`       | yes      | —           | CockroachDB connection string (postgres://)  |
+| `DATABASE_URL`       | yes      | —           | PostgreSQL connection string (postgres://)  |
 | `JWT_SECRET`         | no*      | ephemeral   | JWT signing secret (*set for stable tokens)  |
 | `JWT_EXPIRATION`     | no       | `24h`       | token lifetime (`time.ParseDuration` format) |
 | `AWS_REGION`         | no       | `us-east-1` | region used for signing                      |
@@ -103,7 +114,7 @@ Optional demo-login vars: `VITE_DEMO_AUTH_ENABLED`, `VITE_DEMO_EMAIL`,
 ## Running
 
 - Backend: `go run ./cmd/api` — listens on `PORT`, applies migrations, serves
-  `/health` (pings CockroachDB; 503 when degraded).
+  `/health` (pings PostgreSQL; 503 when degraded).
 - Frontend: `npm run dev` inside `frontend/`.
 - Root scripts: `npm run dev` / `npm run build` (build the frontend).
 
@@ -141,7 +152,7 @@ saved jobs, and applications endpoints are planned.
   endpoints are not yet implemented; the frontend pages for those features are
   partially backed by mock/hardcoded data.
 - Amazon Bedrock integration (chat + embeddings) is pending; the memory layer
-  is fully implemented and tested against CockroachDB.
+  is fully implemented and tested against PostgreSQL.
 - When `JWT_SECRET` is unset, an ephemeral secret is generated per boot, so
   existing tokens are invalidated on restart.
 - Resume upload is capped at 5 MB and accepts `.pdf`, `.doc`, `.docx`, `.txt`.

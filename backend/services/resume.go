@@ -37,7 +37,7 @@ type ResumeRepository interface {
 }
 
 // ResumeService coordinates resume storage (S3) and metadata persistence
-// (CockroachDB). It enforces user ownership on every operation.
+// (PostgreSQL). It enforces user ownership on every operation.
 type ResumeService struct {
 	repo    ResumeRepository
 	storage ObjectStorage

@@ -1,7 +1,7 @@
 # SkillMatch Architecture
 
 ## 1. Overview
-SkillMatch is an AI-powered job search assistant that uses CockroachDB as a persistent memory layer to deliver personalized job recommendations. The system remembers user profiles, resumes, conversations, saved jobs, and application history.
+SkillMatch is an AI-powered job search assistant that uses PostgreSQL (with the pgvector extension) as a persistent memory layer to deliver personalized job recommendations. The system remembers user profiles, resumes, conversations, saved jobs, and application history.
 
 ## 2. Objectives
 - Conversational AI job search.
@@ -17,17 +17,17 @@ SkillMatch is an AI-powered job search assistant that uses CockroachDB as a pers
 | Frontend | React + Vite + TypeScript |
 | Backend | Go (net/http) |
 | AI | Amazon Bedrock |
-| Database | CockroachDB |
+| Database | PostgreSQL |
 | Storage | Amazon S3 |
 | Auth | JWT |
-| Vector Search | CockroachDB Distributed Vector Indexing |
-| Agent Access | CockroachDB Managed MCP Server |
+| Vector Search | PostgreSQL + pgvector HNSW index |
+| Agent Access | MCP Server |
 
 ## 4. High-Level Flow
 1. User signs up.
 2. User uploads resume (stored in S3).
 3. Backend extracts text and creates embeddings.
-4. Embeddings + metadata stored in CockroachDB.
+4. Embeddings + metadata stored in PostgreSQL.
 5. User chats with AI.
 6. Agent retrieves long-term memory through MCP.
 7. Agent performs semantic search using vector indexing.
@@ -52,7 +52,7 @@ Presentation (net/http Handlers)
 → Services
 → Domain
 → Repository
-→ CockroachDB / S3 / Bedrock
+→ PostgreSQL / S3 / Bedrock
 
 Request Flow:
 HTTP Request
@@ -62,7 +62,7 @@ HTTP Request
 → Handler
 → Service
 → Repository
-→ CockroachDB / Amazon S3 / Amazon Bedrock
+→ PostgreSQL / Amazon S3 / Amazon Bedrock
 
 Suggested layout:
 
@@ -122,7 +122,7 @@ skill-match/
 │   │   └── recovery.go
 │   ├── clients/
 │   │   ├── bedrock.go
-│   │   ├── cockroach.go
+│   │   ├── postgres.go
 │   │   ├── mcp.go
 │   │   └── s3.go
 │   ├── utils/
@@ -221,7 +221,7 @@ Transient:
 - Session context
 
 ## 9. Resume Pipeline
-Upload → S3 → Parse → Embed → CockroachDB → Match Jobs
+Upload → S3 → Parse → Embed → PostgreSQL → Match Jobs
 
 ## 10. Job Recommendation Pipeline
 Query → Retrieve Memory → Semantic Search → Rank → Bedrock → Response
@@ -239,15 +239,16 @@ Errors are classified (`ClassifyBedrockError`) into safe, non-technical
 messages — throttling, timeouts, validation, and access errors are each
 handled distinctly rather than surfacing raw AWS errors to users.
 
-### CockroachDB Managed MCP Server
-`clients/mcp.go` connects to `https://cockroachlabs.cloud/mcp`, authenticated
-via a scoped API key and cluster ID header. This gives the agent a secure,
-auditable channel to the memory layer, rather than the backend hardcoding
-every possible query in advance.
+### MCP Server
+`clients/mcp.go` is a generic MCP client (originally pointed at
+`https://cockroachlabs.cloud/mcp`), authenticated via a scoped API key and
+cluster ID header. This gives the agent a secure, auditable channel to the
+memory layer, rather than the backend hardcoding every possible query in
+advance.
 
 ### Conversation & Memory Flow (as implemented in services/ai.go)
 1. Request validated (non-empty, ≤4000 characters).
-2. Recent conversation history retrieved from CockroachDB.
+2. Recent conversation history retrieved from PostgreSQL.
 3. If a resume is attached, its previously parsed text (see
    services/resume_parser.go) is retrieved and appended as context, with an
    ownership check preventing cross-user data leakage.
@@ -257,11 +258,11 @@ every possible query in advance.
    a safe user-facing message via the shared AppError system
    (utils/errors.go).
 
-### CockroachDB's role, concretely
-CockroachDB is the single persistent store behind every memory type in
+### PostgreSQL's role, concretely
+PostgreSQL is the single persistent store behind every memory type in
 Section 8 (profile, resume text, conversation history) — the agent's
 recommendations and responses depend on data written and read from
-CockroachDB on every request, not a separate cache or vector store.
+PostgreSQL on every request, not a separate cache or vector store.
 
 ## 11. APIs
 /auth
@@ -296,7 +297,7 @@ CockroachDB on every request, not a separate cache or vector store.
 ## 14. Deployment
 React → CDN
 Go API → Container
-CockroachDB Cloud
+PostgreSQL (e.g. Amazon RDS/Aurora)
 Amazon Bedrock
 Amazon S3
 

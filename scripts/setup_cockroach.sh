@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# NOTE: Superseded. The project now runs on PostgreSQL — use
+# scripts/setup_postgres.sh instead. This script is kept for reference
+# only (original CockroachDB local dev flow).
+
 # before we begin i'ld like to say that we're defaulting to talking to
 # cockroach in a secure channel because the --insecure option alows us to 
 # send queries without authorization through certificates,

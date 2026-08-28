@@ -81,7 +81,7 @@ type SimilarJob struct {
 }
 
 // EmbeddingRepository provides persistence and similarity search for
-// vector embeddings backed by CockroachDB's Distributed Vector Index.
+// vector embeddings backed by PostgreSQL's pgvector HNSW index.
 type EmbeddingRepository struct {
 	db *pgxpool.Pool
 }

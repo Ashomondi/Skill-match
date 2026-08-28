@@ -18,7 +18,7 @@ var (
 )
 
 // ConversationRepository provides persistence operations for chat history
-// backed by CockroachDB.
+// backed by PostgreSQL.
 type ConversationRepository struct {
 	db *pgxpool.Pool
 }

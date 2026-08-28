@@ -12,7 +12,7 @@ import (
 )
 
 // Issue #72 — application list persistence. Fake-free: runs against a real
-// CockroachDB. Requires TEST_DATABASE_URL and the migrations applied.
+// PostgreSQL. Requires TEST_DATABASE_URL and the migrations applied.
 //
 //	go test -tags integration ./repositories -run TestApplication -v
 

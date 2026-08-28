@@ -1,5 +1,5 @@
 // Package clients contains thin wrappers around external service SDKs
-// (CockroachDB, S3, Bedrock, MCP). This file owns the CockroachDB
+// (PostgreSQL, S3, Bedrock, MCP). This file owns the PostgreSQL
 // connection pool that every repository in repositories/ is constructed
 // with.
 package clients
@@ -14,8 +14,8 @@ import (
 )
 
 // Pool configuration defaults. Chosen conservatively for a single backend
-// instance talking to a CockroachDB Cloud cluster; tune via
-// PoolOptions if load testing shows otherwise.
+// instance talking to a PostgreSQL database; tune via PoolOptions if load
+// testing shows otherwise.
 const (
 	defaultMaxConns          = int32(20)
 	defaultMinConns          = int32(2)
@@ -62,10 +62,9 @@ func (o PoolOptions) withDefaults() PoolOptions {
 	return o
 }
 
-// NewPool establishes a connection pool to CockroachDB and verifies
+// NewPool establishes a connection pool to PostgreSQL and verifies
 // connectivity with a ping before returning. dsn is a standard
-// postgres:// connection string (CockroachDB Cloud dashboards provide one
-// directly, typically already including sslmode=verify-full).
+// postgres:// connection string.
 //
 // The returned pool is safe for concurrent use and should be constructed
 // once at application startup, then passed into each repository
@@ -79,7 +78,7 @@ func NewPool(ctx context.Context, dsn string, opts PoolOptions) (*pgxpool.Pool, 
 
 	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("clients: parse cockroachdb dsn: %w", err)
+		return nil, fmt.Errorf("clients: parse postgres dsn: %w", err)
 	}
 
 	cfg.MaxConns = opts.MaxConns
@@ -94,18 +93,18 @@ func NewPool(ctx context.Context, dsn string, opts PoolOptions) (*pgxpool.Pool, 
 
 	pool, err := pgxpool.NewWithConfig(connectCtx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("clients: create cockroachdb pool: %w", err)
+		return nil, fmt.Errorf("clients: create postgres pool: %w", err)
 	}
 
 	if err := pool.Ping(connectCtx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("clients: ping cockroachdb: %w", err)
+		return nil, fmt.Errorf("clients: ping postgres: %w", err)
 	}
 
 	return pool, nil
 }
 
-// HealthCheck reports whether the pool can currently reach CockroachDB.
+// HealthCheck reports whether the pool can currently reach PostgreSQL.
 // Intended for use by the /health endpoint (Issue 1) — a failing health
 // check should surface as a 503, not crash the process.
 func HealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
@@ -116,7 +115,7 @@ func HealthCheck(ctx context.Context, pool *pgxpool.Pool) error {
 	defer cancel()
 
 	if err := pool.Ping(pingCtx); err != nil {
-		return fmt.Errorf("clients: cockroachdb health check: %w", err)
+		return fmt.Errorf("clients: postgres health check: %w", err)
 	}
 	return nil
 }

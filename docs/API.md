@@ -8,7 +8,7 @@ unless noted. Auth-protected endpoints require an `Authorization: Bearer
 
 ### `GET /health`
 
-Pings CockroachDB.
+Pings PostgreSQL.
 
 | Status | Body |
 | ------ | ---- |

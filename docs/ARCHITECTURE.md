@@ -2,25 +2,26 @@
 
 ## 1. Overview
 
-SkillMatch is an AI-powered job-search assistant that uses CockroachDB as a
-**persistent memory layer**. Users register, upload a resume, chat with an AI
-assistant that remembers prior conversations, and get personalized job
-recommendations derived from resume/job embeddings and interaction history.
+SkillMatch is an AI-powered job-search assistant that uses PostgreSQL (with
+the pgvector extension) as a **persistent memory layer**. Users register,
+upload a resume, chat with an AI assistant that remembers prior conversations,
+and get personalized job recommendations derived from resume/job embeddings
+and interaction history.
 
-The core design idea: the AI (Bedrock) is **stateless**, and CockroachDB is
+The core design idea: the AI (Bedrock) is **stateless**, and PostgreSQL is
 where memory actually lives — conversation turns, vector embeddings, and
 structured user data. Deleting a user cascades across all of it.
 
 ## 2. High-level flow
 
 1. User signs up / logs in → JWT.
-2. User uploads a resume → file bytes to S3, metadata row to CockroachDB.
+2. User uploads a resume → file bytes to S3, metadata row to PostgreSQL.
 3. Backend extracts text and stores an embedding (Titan, 1536 dims).
 4. User chats with the assistant → past turns + similar memories are loaded
-   from CockroachDB, packaged into the prompt, sent to Bedrock, and the reply
+   from PostgreSQL, packaged into the prompt, sent to Bedrock, and the reply
    is stored back as a new turn.
 5. Jobs are embedded too; the matching engine compares resume/query vectors
-   (Distributed Vector Index) plus interaction history.
+   (pgvector HNSW index) plus interaction history.
 6. User saves jobs and tracks applications; the dashboard aggregates it all.
 
 ## 3. Layer diagram
@@ -39,9 +40,9 @@ net/http server  ── middleware: Recovery → Logging → CORS
         │        ▼
         │  repositories  (user, resume, conversation, embedding, …) — SQL only
         │        │
-        │        └────────────►  CockroachDB (pgx pool)
+        │        └────────────►  PostgreSQL (pgx pool)
         │
-        ├─ clients  (S3/MinIO, CockroachDB pool, Bedrock planned)
+        ├─ clients  (S3/MinIO, PostgreSQL pool, Bedrock planned)
         │        └────────────►  S3 / MinIO
         │
         └─ migrations  (embedded SQL, auto-applied at startup)
@@ -49,7 +50,7 @@ net/http server  ── middleware: Recovery → Logging → CORS
 
 ### Dependencies
 
-- `handlers` → `services` → `repositories` → CockroachDB.
+- `handlers` → `services` → `repositories` → PostgreSQL.
 - `handlers`/`services` depend on `repositories` **interfaces** defined in the
   service layer, so services and handlers are unit-testable with fakes.
 - `clients` wraps external SDKs (pgx pool, AWS S3). Repositories never touch
@@ -64,9 +65,9 @@ net/http server  ── middleware: Recovery → Logging → CORS
 | Auth middleware validates JWT and injects `user_id`/`email` into context | handlers/services stay context-based, no global state |
 | S3 client supports custom endpoint + static creds + path style | MinIO/LocalStack are S3-compatible and used for dev |
 | Migrations run at startup via an embedded runner + `schema_migrations` | no manual migration step; idempotent + versioned |
-| Migrations run as multi-statement exec, not in a pgx transaction | CockroachDB refuses transactional vector-index DDL (`auto-committing before DDL`) |
+| Migrations run as multi-statement exec, not in a pgx transaction | files are written idempotently and are safe to re-run after a partial failure |
 | Embeddings are polymorphic (`source_type` + `source_id`) | one table serves resume, conversation, and job vectors |
-| Vector ANN via `ORDER BY vector <=> $1 LIMIT n` | uses CockroachDB's Distributed Vector Index (`vector_cosine_ops`) |
+| Vector ANN via `ORDER BY vector <=> $1 LIMIT n` | backed by a pgvector HNSW index (`vector_cosine_ops`) |
 
 ## 5. Authentication & authorization
 
@@ -80,7 +81,7 @@ net/http server  ── middleware: Recovery → Logging → CORS
 
 ## 6. Storage
 
-- **CockroachDB** — users, resumes (metadata), conversations, embeddings,
+- **PostgreSQL** — users, resumes (metadata), conversations, embeddings,
   jobs, saved jobs, interactions, applications, schema_migrations. See
   [DATABASE.md](DATABASE.md).
 - **S3/MinIO** — resume file bytes at `resumes/{userID}/{fileID}`, accessed via
@@ -92,7 +93,7 @@ net/http server  ── middleware: Recovery → Logging → CORS
   handlers via `httptest` behind the real auth middleware, middleware JWT
   flows, clients config validation. `go test ./...`.
 - **Integration tests** (`//go:build integration`, env-guarded): real
-  CockroachDB + MinIO; cover memory workflow, resume storage round-trip, and
+  PostgreSQL + MinIO; cover memory workflow, resume storage round-trip, and
   interaction/application persistence. Run with `TEST_DATABASE_URL` and
   `TEST_S3_*`. `go test -tags integration ./...`.
 

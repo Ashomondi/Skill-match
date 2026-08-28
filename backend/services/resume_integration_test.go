@@ -17,12 +17,12 @@ import (
 
 // TestResumeStorageIntegration covers Issue #21: the full resume storage
 // flow end-to-end — upload writes the object to S3 AND the metadata row to
-// CockroachDB, and the presigned download round-trips the same bytes.
+// PostgreSQL, and the presigned download round-trips the same bytes.
 //
 // It is build-tagged and env-guarded so it never runs in a normal `go test
 // ./...` or in CI without infrastructure. Provide:
 //
-//	TEST_DATABASE_URL    postgres://... (cockroachdb dsn)
+//	TEST_DATABASE_URL    postgres://...
 //	TEST_S3_ENDPOINT     e.g. http://localhost:9000
 //	TEST_S3_BUCKET       bucket name
 //	TEST_S3_ACCESS_KEY   access key
@@ -43,7 +43,7 @@ func TestResumeStorageIntegration(t *testing.T) {
 
 	pool, err := clients.NewPool(ctx, dsn, clients.PoolOptions{})
 	if err != nil {
-		t.Fatalf("connect to cockroachdb: %v", err)
+		t.Fatalf("connect to postgres: %v", err)
 	}
 	defer pool.Close()
 

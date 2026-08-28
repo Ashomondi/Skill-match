@@ -1,5 +1,5 @@
 // Package repositories contains the persistence layer. Repositories are the
-// only layer permitted to issue SQL against CockroachDB; callers (services)
+// only layer permitted to issue SQL against PostgreSQL; callers (services)
 // depend on the exported methods here and never touch *pgxpool.Pool
 // directly.
 package repositories
@@ -42,7 +42,7 @@ type User struct {
 }
 
 // UserRepository provides persistence operations for users backed by
-// CockroachDB.
+// PostgreSQL.
 type UserRepository struct {
 	db *pgxpool.Pool
 }
@@ -182,8 +182,8 @@ func (r *UserRepository) scanOne(ctx context.Context, query string, args ...any)
 	}
 }
 
-// isUniqueViolation reports whether err is a CockroachDB/Postgres unique
-// constraint violation (SQLSTATE 23505), e.g. duplicate email on insert.
+// isUniqueViolation reports whether err is a PostgreSQL unique constraint
+// violation (SQLSTATE 23505), e.g. duplicate email on insert.
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
