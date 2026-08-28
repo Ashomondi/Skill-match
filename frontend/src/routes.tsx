@@ -27,7 +27,7 @@ export const AppRoutes: React.FC = () => {
     <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
     <Route path="/resume" element={<ProtectedRoute><ResumePage /></ProtectedRoute>} />
-    <Route path="/cv-tailor" element={<ProtectedRoute><Navigate to="/discover" replace /></ProtectedRoute>} />
+    <Route path="/cv-tailor" element={<ProtectedRoute><Tailor /></ProtectedRoute>} />
     <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
     <Route path="/discover" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
     <Route path="/discover/:jobId" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />

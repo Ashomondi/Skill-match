@@ -18,17 +18,17 @@ var (
 )
 
 type Job struct {
-	ID          string
-	ExternalID  string
-	Title       string
-	Company     string
-	Location    string
-	Description string
-	Salary      string
-	Remote      bool
-	SourceURL   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID          string    `json:"id"`
+	ExternalID  string    `json:"external_id"`
+	Title       string    `json:"title"`
+	Company     string    `json:"company"`
+	Location    string    `json:"location"`
+	Description string    `json:"description"`
+	Salary      string    `json:"salary,omitempty"`
+	Remote      bool      `json:"remote"`
+	SourceURL   string    `json:"source_url,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type JobSearchFilter struct {
@@ -52,8 +52,8 @@ type SemanticMatchFilter struct {
 }
 
 type MatchScore struct {
-	Job   *Job
-	Score float64
+	Job   *Job    `json:"job"`
+	Score float64 `json:"score"`
 }
 
 type JobRepository struct {

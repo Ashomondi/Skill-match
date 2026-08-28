@@ -7,9 +7,9 @@ import (
 type Config struct {
 	Port string
 
-	DatabaseURL string
-	JWTSecret   string
-	CORSOrigin  string
+	DatabaseURL   string
+	JWTSecret     string
+	CORSOrigin    string
 	AllowedOrigin string
 
 	AWSRegion        string
@@ -49,9 +49,10 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port: getEnv("PORT", "8080"),
 
-		DatabaseURL: dbURL,
-		JWTSecret:   jwtSecret,
-		CORSOrigin:  getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:3000"),
+		DatabaseURL:   dbURL,
+		JWTSecret:     jwtSecret,
+		CORSOrigin:    getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
+		AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
 
 		AWSRegion:        awsRegion(),
 		S3Bucket:         s3Bucket(),

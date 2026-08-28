@@ -30,7 +30,7 @@ export const applicationService = {
 
   async updateStatus(id: string, status: ApplicationStatus): Promise<Application> {
     const token = localStorage.getItem("token");
-    const response = await fetch(API_BASE_URL + "/applications/" + encodeURIComponent(id) + "/status", { method: "PATCH", headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify({ status }) });
+    const response = await fetch(API_BASE_URL + "/applications/" + encodeURIComponent(id), { method: "PUT", headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}) }, body: JSON.stringify({ status }) });
     if (!response.ok) throw new Error(await requestError(response, "Application status could not be updated."));
     return normalize(await response.json());
   },
