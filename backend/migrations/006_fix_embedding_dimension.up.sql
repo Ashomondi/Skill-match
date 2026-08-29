@@ -3,8 +3,15 @@
 -- copied from the older Titan G1 model). Table is empty — safe to drop
 -- and recreate the column rather than attempt an in-place type change.
 
-DROP INDEX IF EXISTS embeddings_vector_idx;
-ALTER TABLE embeddings DROP COLUMN vector;
-ALTER TABLE embeddings ADD COLUMN vector VECTOR(1024) NOT NULL;
-CREATE INDEX IF NOT EXISTS embeddings_vector_idx
-    ON embeddings USING hnsw (vector vector_cosine_ops);
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
+        DROP INDEX IF EXISTS embeddings_vector_idx;
+        ALTER TABLE embeddings DROP COLUMN vector;
+        ALTER TABLE embeddings ADD COLUMN vector VECTOR(1024) NOT NULL;
+        CREATE INDEX IF NOT EXISTS embeddings_vector_idx
+            ON embeddings USING hnsw (vector vector_cosine_ops);
+    ELSE
+        RAISE NOTICE 'pgvector extension is not installed; skipping embedding dimension fix';
+    END IF;
+END $$;
