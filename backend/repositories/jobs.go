@@ -303,3 +303,15 @@ func (r *JobRepository) scanOne(ctx context.Context, query string, args ...any) 
 		return nil, fmt.Errorf("repositories: query job: %w", err)
 	}
 }
+
+func (r *JobRepository) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
+	const q = `SELECT EXISTS(SELECT 1 FROM jobs WHERE external_id = $1)`
+
+	var exists bool
+	err := r.db.QueryRow(ctx, q, externalID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("repositories: check job existence by external_id: %w", err)
+	}
+
+	return exists, nil
+}
