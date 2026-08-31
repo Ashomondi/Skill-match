@@ -59,9 +59,16 @@ func (h *JobsHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := r.URL.Query().Get("q")
+	// Parse search parameters (support both 'query' and 'q')
+	q := r.URL.Query().Get("query")
+	if q == "" {
+		q = r.URL.Query().Get("q")
+	}
+
 	location := r.URL.Query().Get("location")
 	company := r.URL.Query().Get("company")
+	seniority := r.URL.Query().Get("seniority")
+	workType := r.URL.Query().Get("work_type")
 	remoteStr := r.URL.Query().Get("remote")
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -74,12 +81,14 @@ func (h *JobsHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filter := repositories.JobSearchFilter{
-		Query:    q,
-		Location: location,
-		Company:  company,
-		Remote:   remote,
-		Limit:    limit,
-		Offset:   offset,
+		Query:     q,
+		Location:  location,
+		Company:   company,
+		Seniority: seniority,
+		WorkType:  workType,
+		Remote:    remote,
+		Limit:     limit,
+		Offset:    offset,
 	}
 
 	result, err := h.jobService.SearchJobs(r.Context(), filter)
