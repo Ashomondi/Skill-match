@@ -18,6 +18,8 @@ type SourceJob struct {
 	Description string
 	Salary      string
 	Remote      bool
+	Seniority   string
+	WorkType    string
 	SourceURL   string
 }
 
@@ -51,7 +53,18 @@ func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
 			skipped++
 			continue
 		}
-		_, err = s.repo.Create(ctx, &repositories.Job{ExternalID: source.ExternalID, Title: source.Title, Company: source.Company, Location: source.Location, Description: source.Description, Salary: source.Salary, Remote: source.Remote, SourceURL: source.SourceURL})
+		_, err = s.repo.Create(ctx, &repositories.Job{
+			ExternalID:  source.ExternalID,
+			Title:       source.Title,
+			Company:     source.Company,
+			Location:    source.Location,
+			Description: source.Description,
+			Salary:      source.Salary,
+			Remote:      source.Remote,
+			Seniority:   source.Seniority,
+			WorkType:    source.WorkType,
+			SourceURL:   source.SourceURL,
+		})
 		if err != nil {
 			return ingested, skipped, err
 		}
