@@ -82,5 +82,15 @@ func (s *JobService) SearchJobs(ctx context.Context, filter repositories.JobSear
 }
 
 func (s *JobService) MatchJobs(ctx context.Context, filter repositories.SemanticMatchFilter) ([]*repositories.MatchScore, error) {
-	return s.repo.MatchJobs(ctx, filter)
+	if len(filter.UserSkills) == 0 {
+		return []*repositories.MatchScore{}, nil
+	}
+
+	candidateJobs, err := s.repo.MatchJobs(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	matchingSvc := NewMatchingService()
+	return matchingSvc.RankJobs(filter.UserSkills, candidateJobs, filter.MinScore), nil
 }
