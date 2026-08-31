@@ -160,3 +160,28 @@ func (h *JobsHandler) Match(w http.ResponseWriter, r *http.Request) {
 		"total":   len(matches),
 	})
 }
+
+func (h *JobsHandler) Ingest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "method not allowed"})
+		return
+	}
+
+	ingested, skipped, err := h.jobService.IngestJobsWithRetry(r.Context(), 3)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"message":  "ingestion successful",
+		"ingested": ingested,
+		"skipped":  skipped,
+	})
+}
