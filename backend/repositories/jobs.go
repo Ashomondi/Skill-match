@@ -265,44 +265,41 @@ func (r *JobRepository) Search(ctx context.Context, filter JobSearchFilter) (*Jo
 	}, nil
 }
 
-func (r *JobRepository) MatchJobs(ctx context.Context, filter SemanticMatchFilter) ([]*MatchScore, error) {
-	jobs, err := r.List(ctx, filter.Limit)
+func (r *JobRepository) MatchJobs(ctx context.Context, filter SemanticMatchFilter) ([]*Job, error) {
+	if len(filter.UserSkills) == 0 {
+		return []*Job{}, nil
+	}
+
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+
+	// Fetch candidate jobs to be scored by services layer
+	jobs, err := r.List(ctx, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("repositories: list candidate jobs for matching: %w", err)
 	}
 
-	scores := make([]*MatchScore, 0, len(jobs))
-	for _, job := range jobs {
-		scores = append(scores, &MatchScore{
-			Job:   job,
-			Score: 0.85,
-		})
-	}
-	return scores, nil
-}
-
-func (r *JobRepository) ExistsByExternalID(ctx context.Context, externalID string) (bool, error) {
-    const q = `SELECT EXISTS(SELECT 1 FROM jobs WHERE external_id = $1)`
-
-    var exists bool
-    if err := r.db.QueryRow(ctx, q, externalID).Scan(&exists); err != nil {
-        return false, fmt.Errorf("repositories: check job existence: %w", err)
-    }
-    return exists, nil
+	return jobs, nil
 }
 
 func (r *JobRepository) scanOne(ctx context.Context, query string, args ...any) (*Job, error) {
-    row := r.db.QueryRow(ctx, query, args...)
+	row := r.db.QueryRow(ctx, query, args...)
 
-    j := &Job{}
-    err := row.Scan(&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
-        &j.Description, &j.Salary, &j.Remote, &j.Seniority, &j.WorkType, &j.SourceURL, &j.CreatedAt, &j.UpdatedAt)
-    switch {
-    case err == nil:
-        return j, nil
-    case errors.Is(err, pgx.ErrNoRows):
-        return nil, ErrJobNotFound
-    default:
-        return nil, fmt.Errorf("repositories: query job: %w", err)
-    }
+	j := &Job{}
+	err := row.Scan(
+		&j.ID, &j.ExternalID, &j.Title, &j.Company, &j.Location,
+		&j.Description, &j.Salary, &j.Remote, &j.Seniority, &j.WorkType,
+		&j.SourceURL, &j.CreatedAt, &j.UpdatedAt,
+	)
+
+	switch {
+	case err == nil:
+		return j, nil
+	case errors.Is(err, pgx.ErrNoRows):
+		return nil, ErrJobNotFound
+	default:
+		return nil, fmt.Errorf("repositories: query job: %w", err)
+	}
 }
