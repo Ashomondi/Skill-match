@@ -2,10 +2,12 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"time"
 
 	"skill-match/backend/repositories"
 )
-
 type JobSource interface {
 	FetchJobs(ctx context.Context) ([]SourceJob, error)
 }
@@ -93,4 +95,34 @@ func (s *JobService) MatchJobs(ctx context.Context, filter repositories.Semantic
 
 	matchingSvc := NewMatchingService()
 	return matchingSvc.RankJobs(filter.UserSkills, candidateJobs, filter.MinScore), nil
+}
+
+func (s *JobService) IngestJobsWithRetry(ctx context.Context, maxRetries int) (int, int, error) {
+	var (
+		ingested int
+		skipped  int
+		err      error
+	)
+
+	backoff := 1 * time.Second
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ingested, skipped, err = s.IngestJobs(ctx)
+		if err == nil {
+			log.Printf("job ingestion succeeded (attempt %d): %d ingested, %d skipped", attempt, ingested, skipped)
+			return ingested, skipped, nil
+		}
+
+		log.Printf("WARNING: job ingestion attempt %d/%d failed: %v", attempt, maxRetries, err)
+
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return 0, 0, ctx.Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
+		}
+	}
+
+	return ingested, skipped, fmt.Errorf("job_service: ingestion failed after %d retries: %w", maxRetries, err)
 }
