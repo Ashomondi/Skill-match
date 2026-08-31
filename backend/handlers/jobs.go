@@ -129,6 +129,16 @@ func (h *JobsHandler) Match(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Skills) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"matches": []*repositories.MatchScore{},
+			"total":   0,
+		})
+		return
+	}
+
 	filter := repositories.SemanticMatchFilter{
 		UserSkills: req.Skills,
 		MinScore:   req.MinScore,
