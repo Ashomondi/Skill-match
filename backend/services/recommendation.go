@@ -13,15 +13,18 @@ import (
 type RecommendationService struct {
 	jobRepo     *repositories.JobRepository
 	profileRepo *repositories.ProfileRepository
+	matchingSvc *MatchingService
 }
 
 func NewRecommendationService(
 	jobRepo *repositories.JobRepository,
 	profileRepo *repositories.ProfileRepository,
+	matchingSvc *MatchingService,
 ) *RecommendationService {
 	return &RecommendationService{
 		jobRepo:     jobRepo,
 		profileRepo: profileRepo,
+		matchingSvc: matchingSvc,
 	}
 }
 
@@ -59,10 +62,14 @@ func (s *RecommendationService) RecommendForUser(
 		Limit:      limit,
 	}
 
-	recommendations, err := s.jobRepo.MatchJobs(ctx, filter)
+	// 1. Fetch candidate jobs from repository layer
+	candidateJobs, err := s.jobRepo.MatchJobs(ctx, filter)
 	if err != nil {
 		return nil, fmt.Errorf("services: recommend jobs match: %w", err)
 	}
+
+	// 2. Score and rank jobs using MatchingService within the service layer
+	recommendations := s.matchingSvc.RankJobs(matchingSkills, candidateJobs, filter.MinScore)
 
 	return recommendations, nil
 }

@@ -53,31 +53,38 @@ func main() {
 		)
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
 
+		// Instantiate repositories and services
 		jobRepo := repositories.NewJobRepository(pool)
+		seedSource := services.NewSeedJobSource()
+		jobSource := services.NewExternalJobSource(seedSource)
+		matchingSvc := services.NewMatchingService()
+
 		savedJobs := handlers.NewSavedJobsHandler(services.NewSavedJobService(repositories.NewSavedJobRepository(pool)))
 		routes.RegisterSavedJobs(mux, savedJobs, jwtManager)
 		routes.RegisterApplications(mux,
 			handlers.NewApplicationHandler(services.NewApplicationService(repositories.NewApplicationRepository(pool))),
 			jwtManager,
 		)
-		jobService := services.NewJobService(jobRepo, services.NewSeedJobSource())
+
+		jobService := services.NewJobService(jobRepo, jobSource)
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
 		routes.RegisterRecommendations(
 			mux,
-			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool))),
+			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool), matchingSvc)),
 			jwtManager,
 		)
 
-		if ingestible, ok := interface{}(jobService).(interface {
-			IngestJobs(ctx context.Context) (int, int, error)
-		}); ok {
-			ingested, skipped, err := ingestible.IngestJobs(ctx)
-			if err != nil {
-				log.Printf("WARNING: job ingestion failed: %v", err)
+		// Async boot ingestion with retries and backoff
+		go func() {
+			ingestCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+
+			if ingested, skipped, err := jobService.IngestJobsWithRetry(ingestCtx, 3); err != nil {
+				log.Printf("WARNING: background boot job ingestion failed: %v", err)
 			} else {
-				log.Printf("job ingestion: %d ingested, %d skipped", ingested, skipped)
+				log.Printf("job ingestion completed: %d ingested, %d skipped", ingested, skipped)
 			}
-		}
+		}()
 
 		if cfg.BedrockModelID != "" {
 			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockModelID)
@@ -124,18 +131,15 @@ func main() {
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 
-	// ... setup handlers, services, and route registrations above ...
-
 	healthHandler := handlers.NewHealthHandler(pool, s3Client)
 	routes.RegisterAll(mux,
 		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
 	)
 
-	// 👇 Middleware chain setup belongs here
 	handler := middleware.Chain(mux,
 		middleware.Logging,
 		middleware.Recovery,
-		middleware.CORS(cfg.AllowedOrigin), // Pass cfg.AllowedOrigin (or "*" / your origin string)
+		middleware.CORS(cfg.AllowedOrigin),
 	)
 
 	log.Printf("listening on :%s", cfg.Port)
@@ -143,6 +147,7 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
 func jwtSecret(cfg *config.Config) string {
 	if cfg.JWTSecret != "" {
 		return cfg.JWTSecret

@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"time"
 
 	"skill-match/backend/repositories"
 )
@@ -18,6 +21,8 @@ type SourceJob struct {
 	Description string
 	Salary      string
 	Remote      bool
+	Seniority   string
+	WorkType    string
 	SourceURL   string
 }
 
@@ -51,7 +56,18 @@ func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
 			skipped++
 			continue
 		}
-		_, err = s.repo.Create(ctx, &repositories.Job{ExternalID: source.ExternalID, Title: source.Title, Company: source.Company, Location: source.Location, Description: source.Description, Salary: source.Salary, Remote: source.Remote, SourceURL: source.SourceURL})
+		_, err = s.repo.Create(ctx, &repositories.Job{
+			ExternalID:  source.ExternalID,
+			Title:       source.Title,
+			Company:     source.Company,
+			Location:    source.Location,
+			Description: source.Description,
+			Salary:      source.Salary,
+			Remote:      source.Remote,
+			Seniority:   source.Seniority,
+			WorkType:    source.WorkType,
+			SourceURL:   source.SourceURL,
+		})
 		if err != nil {
 			return ingested, skipped, err
 		}
@@ -69,5 +85,45 @@ func (s *JobService) SearchJobs(ctx context.Context, filter repositories.JobSear
 }
 
 func (s *JobService) MatchJobs(ctx context.Context, filter repositories.SemanticMatchFilter) ([]*repositories.MatchScore, error) {
-	return s.repo.MatchJobs(ctx, filter)
+	if len(filter.UserSkills) == 0 {
+		return []*repositories.MatchScore{}, nil
+	}
+
+	candidateJobs, err := s.repo.MatchJobs(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	matchingSvc := NewMatchingService()
+	return matchingSvc.RankJobs(filter.UserSkills, candidateJobs, filter.MinScore), nil
+}
+
+func (s *JobService) IngestJobsWithRetry(ctx context.Context, maxRetries int) (int, int, error) {
+	var (
+		ingested int
+		skipped  int
+		err      error
+	)
+
+	backoff := 1 * time.Second
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		ingested, skipped, err = s.IngestJobs(ctx)
+		if err == nil {
+			log.Printf("job ingestion succeeded (attempt %d): %d ingested, %d skipped", attempt, ingested, skipped)
+			return ingested, skipped, nil
+		}
+
+		log.Printf("WARNING: job ingestion attempt %d/%d failed: %v", attempt, maxRetries, err)
+
+		if attempt < maxRetries {
+			select {
+			case <-ctx.Done():
+				return 0, 0, ctx.Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
+		}
+	}
+
+	return ingested, skipped, fmt.Errorf("job_service: ingestion failed after %d retries: %w", maxRetries, err)
 }
