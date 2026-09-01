@@ -8,6 +8,7 @@ import (
 
 	"skill-match/backend/repositories"
 )
+
 type JobSource interface {
 	FetchJobs(ctx context.Context) ([]SourceJob, error)
 }

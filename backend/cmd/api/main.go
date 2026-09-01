@@ -16,6 +16,7 @@ import (
 	"skill-match/backend/repositories"
 	"skill-match/backend/routes"
 	"skill-match/backend/services"
+	"skill-match/backend/utils"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
