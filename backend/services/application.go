@@ -82,11 +82,5 @@ func (s *ApplicationService) UpdateApplicationStatus(ctx context.Context, userID
 }
 
 func isValidApplicationStatus(status models.ApplicationStatus) bool {
-	// Evaluates the string representation to stay resilient across model variations
-	switch strings.ToLower(string(status)) {
-	case "saved", "applied", "interviewing", "rejected", "accepted", "offer":
-		return true
-	default:
-		return false
-	}
+	return status.Valid()
 }
