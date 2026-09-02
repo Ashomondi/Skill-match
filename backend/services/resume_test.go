@@ -288,3 +288,48 @@ func TestListScopesByUser(t *testing.T) {
 		t.Errorf("expected only user-1 resumes, got %d", len(list))
 	}
 }
+
+func TestUploadWithoutStorageFailsCleanly(t *testing.T) {
+	svc := NewResumeService(newFakeResumeRepo(), nil)
+
+	_, err := svc.Upload(context.Background(), testUserID, "", "resume.pdf", pdfCT, []byte(pdfBody))
+	if !errors.Is(err, ErrStorageUnavailable) {
+		t.Fatalf("expected ErrStorageUnavailable, got %v", err)
+	}
+}
+
+func TestUploadWithTypedNilStorageFailsCleanly(t *testing.T) {
+	// Reproduces production wiring: a nil *clients.S3Client boxed into the
+	// ObjectStorage interface is not a nil interface; the guard must catch it.
+	var storage *fakeStorage
+	svc := NewResumeService(newFakeResumeRepo(), storage)
+
+	_, err := svc.Upload(context.Background(), testUserID, "", "resume.pdf", pdfCT, []byte(pdfBody))
+	if !errors.Is(err, ErrStorageUnavailable) {
+		t.Fatalf("expected ErrStorageUnavailable, got %v", err)
+	}
+}
+
+func TestDownloadURLWithoutStorageFailsCleanly(t *testing.T) {
+	repo := newFakeResumeRepo()
+	repo.byID["res-1"] = &models.Resume{ID: "res-1", UserID: testUserID, S3Key: "resumes/user-1/x"}
+	repo.byUser[testUserID] = []*models.Resume{repo.byID["res-1"]}
+	svc := NewResumeService(repo, nil)
+
+	_, _, err := svc.DownloadURL(context.Background(), testUserID, "res-1", time.Minute)
+	if !errors.Is(err, ErrStorageUnavailable) {
+		t.Fatalf("expected ErrStorageUnavailable, got %v", err)
+	}
+}
+
+func TestDeleteWithoutStorageFailsCleanly(t *testing.T) {
+	repo := newFakeResumeRepo()
+	repo.byID["res-1"] = &models.Resume{ID: "res-1", UserID: testUserID, S3Key: "resumes/user-1/x"}
+	repo.byUser[testUserID] = []*models.Resume{repo.byID["res-1"]}
+	svc := NewResumeService(repo, nil)
+
+	err := svc.Delete(context.Background(), testUserID, "res-1")
+	if !errors.Is(err, ErrStorageUnavailable) {
+		t.Fatalf("expected ErrStorageUnavailable, got %v", err)
+	}
+}

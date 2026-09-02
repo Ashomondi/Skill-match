@@ -79,8 +79,8 @@ func main() {
 			}
 		}
 
-		if cfg.BedrockModelID != "" {
-			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockModelID)
+		if cfg.BedrockChatModelID != "" {
+			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockChatModelID)
 			if err != nil {
 				log.Printf("WARNING: failed to init Bedrock client: %v — chat disabled", err)
 			} else {
@@ -92,10 +92,11 @@ func main() {
 				})
 				memoryService := services.NewMemoryService(conversationRepo)
 				chatService := services.NewChatService(aiService, memoryService)
-				routes.RegisterChat(mux, handlers.NewChatHandler(chatService))
+				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
+				routes.RegisterTailor(mux, handlers.NewTailorHandler(aiService), jwtManager)
 			}
 		} else {
-			log.Println("WARNING: BEDROCK_MODEL_ID not set — chat disabled")
+			log.Println("WARNING: BEDROCK_CHAT_MODEL_ID not set — chat disabled")
 		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
@@ -119,8 +120,12 @@ func main() {
 		log.Println("WARNING: S3_BUCKET_NAME not set — storage health checks disabled")
 	}
 
-	if pool != nil && s3Client != nil {
-		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), s3Client)
+	if pool != nil {
+		var storage services.ObjectStorage
+		if s3Client != nil {
+			storage = s3Client
+		}
+		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), storage)
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 

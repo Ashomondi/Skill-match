@@ -156,6 +156,9 @@ func writeResumeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, services.ErrInvalidResume):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 
+	case errors.Is(err, services.ErrStorageUnavailable):
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "object storage is not configured; resume uploads and downloads are unavailable"})
+
 	default:
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to process resume"})
 	}
