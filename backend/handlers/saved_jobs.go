@@ -85,10 +85,11 @@ func (h *SavedJobsHandler) writeError(w http.ResponseWriter, err error) {
 		writeSavedJobError(w, http.StatusInternalServerError, "failed to manage saved jobs")
 	}
 }
-func (h *SavedJobsHandler) HandleSavedJobs(w http.ResponseWriter, r *http.Request) { h.List(w, r) }
-func (h *SavedJobsHandler) HandleDeleteSavedJob(w http.ResponseWriter, r *http.Request) {
-	h.Remove(w, r)
-}
+
+// func (h *SavedJobsHandler) HandleSavedJobs(w http.ResponseWriter, r *http.Request) { h.List(w, r) }
+// func (h *SavedJobsHandler) HandleDeleteSavedJob(w http.ResponseWriter, r *http.Request) {
+// 	h.Remove(w, r)
+// }
 
 func writeSavedJobError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
