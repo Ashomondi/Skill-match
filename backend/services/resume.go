@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"skill-match/backend/models"
@@ -15,6 +16,7 @@ var (
 	ErrResumeNotFound     = errors.New("resume not found")
 	ErrResumeAccessDenied = errors.New("resume access denied")
 	ErrInvalidResume      = errors.New("invalid resume")
+	ErrStorageUnavailable = errors.New("object storage is not configured")
 	ErrResumeUnauthorized = ErrResumeAccessDenied // alias used by AI/recommendation services
 )
 
@@ -47,6 +49,18 @@ func NewResumeService(repo ResumeRepository, storage ObjectStorage) *ResumeServi
 	return &ResumeService{repo: repo, storage: storage}
 }
 
+// storageAvailable reports whether object storage is configured. It also
+// guards against a typed-nil storage value (e.g. a nil *clients.S3Client
+// boxed into the ObjectStorage interface), which a plain `== nil` check
+// misses.
+func storageAvailable(storage ObjectStorage) bool {
+	if storage == nil {
+		return false
+	}
+	v := reflect.ValueOf(storage)
+	return !(v.Kind() == reflect.Ptr && v.IsNil())
+}
+
 // Upload validates and stores a resume: bytes go to S3 first, then the
 // metadata row is persisted. If the DB insert fails after the S3 upload, the
 // object is deleted so no orphan is left behind. When replaceID is set, the
@@ -65,6 +79,10 @@ func (s *ResumeService) Upload(ctx context.Context, userID, replaceID, filename,
 		if _, err := s.getOwned(ctx, userID, replaceID); err != nil {
 			return nil, err
 		}
+	}
+
+	if !storageAvailable(s.storage) {
+		return nil, ErrStorageUnavailable
 	}
 
 	fileID, err := utils.GenerateFileID(filename)
@@ -116,6 +134,10 @@ func (s *ResumeService) DownloadURL(ctx context.Context, userID, id string, expi
 		return nil, "", err
 	}
 
+	if !storageAvailable(s.storage) {
+		return nil, "", ErrStorageUnavailable
+	}
+
 	url, err := s.storage.PresignDownload(ctx, res.S3Key, expiry)
 	if err != nil {
 		return nil, "", fmt.Errorf("presign resume download: %w", err)
@@ -129,6 +151,10 @@ func (s *ResumeService) Delete(ctx context.Context, userID, id string) error {
 	res, err := s.getOwned(ctx, userID, id)
 	if err != nil {
 		return err
+	}
+
+	if !storageAvailable(s.storage) {
+		return ErrStorageUnavailable
 	}
 
 	if err := s.storage.Delete(ctx, res.S3Key); err != nil {

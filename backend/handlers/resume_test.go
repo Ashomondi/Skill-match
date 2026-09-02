@@ -187,6 +187,16 @@ func TestResumeCreateRejectsUnsupportedType(t *testing.T) {
 	}
 }
 
+func TestResumeCreateWithoutStorageReturns503(t *testing.T) {
+	h := NewResumeHandler(services.NewResumeService(newHandlerFakeResumeRepo(), nil))
+	handler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
+
+	rec := performAuthorized(t, handler, "user-1", multipartRequest(t, "resume.pdf", "application/pdf", "%PDF-1.4", "", ""))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when storage is not configured, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestResumeCreateReplaceSendsReplaceId(t *testing.T) {
 	h, repo, _ := newTestResumeHandler()
 	handler := middleware.Auth(utils.NewJWTManager(resumeTestSecret, time.Hour))(http.HandlerFunc(h.Create))
