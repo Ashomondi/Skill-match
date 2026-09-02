@@ -11,7 +11,7 @@ func TestSavedJobsUnauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	h := NewSavedJobsHandler(nil)
-	h.HandleSavedJobs(w, req)
+	h.List(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
@@ -23,7 +23,7 @@ func TestDeleteSavedJobUnauthorized(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	h := NewSavedJobsHandler(nil)
-	h.HandleDeleteSavedJob(w, req)
+	h.Remove(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
