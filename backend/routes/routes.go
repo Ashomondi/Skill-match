@@ -62,9 +62,10 @@ func RegisterRecommendations(mux *http.ServeMux, h *handlers.RecommendationHandl
 func RegisterSavedJobs(mux *http.ServeMux, handler *handlers.SavedJobsHandler, jwtManager *utils.JWTManager) {
 	auth := middleware.Auth(jwtManager)
 	mux.Handle("GET /api/saved-jobs", auth(http.HandlerFunc(handler.List)))
-	mux.Handle("POST /api/saved-jobs/", auth(http.HandlerFunc(handler.Save)))
-	mux.Handle("DELETE /api/saved-jobs/{job_id}", auth(http.HandleFunc(handler.Remove)))
+	mux.Handle("POST /api/saved-jobs", auth(http.HandlerFunc(handler.Save)))
+	mux.Handle("DELETE /api/saved-jobs/{job_id}", auth(http.HandlerFunc(handler.Remove)))
 }
+
 func RegisterApplications(mux *http.ServeMux, handler *handlers.ApplicationHandler, jwtManager *utils.JWTManager) {
 	auth := middleware.Auth(jwtManager)
 	mux.Handle("/api/applications", auth(http.HandlerFunc(handler.HandleCollection)))
