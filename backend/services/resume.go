@@ -36,6 +36,7 @@ type ResumeRepository interface {
 	GetByID(ctx context.Context, id string) (*models.Resume, error)
 	ListByUserID(ctx context.Context, userID string, limit int) ([]*models.Resume, error)
 	Delete(ctx context.Context, id string) error
+	UpdateStatus(ctx context.Context, id string, status models.ResumeStatus, parsedText, failureReason *string) error
 }
 
 // ResumeService coordinates resume storage (S3) and metadata persistence
@@ -109,6 +110,26 @@ func (s *ResumeService) Upload(ctx context.Context, userID, replaceID, filename,
 		// Roll back the object so a failed row doesn't leak storage.
 		_ = s.storage.Delete(ctx, key)
 		return nil, err
+	}
+
+	// Attempt immediate parse so the UI doesn't stay on "uploaded" forever.
+	// In production this would be a background job; here we run synchronously
+	// for immediate effect.
+	parsed, parseErr := ParseResume(ctx, userID, filename, contentType, data)
+	if parseErr == nil && parsed.Status == models.ResumeStatusParsed {
+		// Transition to parsed and set extracted text + clear failure reason.
+		_ = s.repo.UpdateStatus(ctx, parsed.ID, parsed.Status, parsed.ParsedText, nil)
+	} else if parseErr != nil {
+		// Parsing failed — record the reason and mark failed.
+		failureMsg := parseErr.Error()
+		_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusFailed, nil, &failureMsg)
+	} else {
+		// Parsing succeeded but status is still Uploaded (should not happen
+		// with the current ParseResume impl), so transition to Parsing then Parsed.
+		// For now, just mark as parsed with the text.
+		if parsed.ParsedText != nil {
+			_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusParsed, parsed.ParsedText, nil)
+		}
 	}
 
 	if replaceID != "" {

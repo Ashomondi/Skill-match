@@ -88,6 +88,17 @@ func (f *handlerFakeResumeRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *handlerFakeResumeRepo) UpdateStatus(_ context.Context, id string, status models.ResumeStatus, parsedText, failureReason *string) error {
+	r, ok := f.byID[id]
+	if !ok {
+		return repositories.ErrResumeNotFound
+	}
+	r.Status = status
+	r.ParsedText = parsedText
+	r.FailureReason = failureReason
+	return nil
+}
+
 const resumeTestSecret = "resume-handler-test-secret"
 
 func newTestResumeHandler() (*ResumeHandler, *handlerFakeResumeRepo, *handlerFakeStorage) {
