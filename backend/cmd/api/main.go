@@ -120,8 +120,12 @@ func main() {
 		log.Println("WARNING: S3_BUCKET_NAME not set — storage health checks disabled")
 	}
 
-	if pool != nil && s3Client != nil {
-		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), s3Client)
+	if pool != nil {
+		var storage services.ObjectStorage
+		if s3Client != nil {
+			storage = s3Client
+		}
+		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), storage)
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 
