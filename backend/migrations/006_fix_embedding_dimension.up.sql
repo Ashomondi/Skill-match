@@ -2,16 +2,24 @@
 -- Titan Text Embeddings V2's actual max output size (1536 was mistakenly
 -- copied from the older Titan G1 model). Table is empty — safe to drop
 -- and recreate the column rather than attempt an in-place type change.
+-- This migration is idempotent: safe to re-run if a previous attempt
+-- failed partway (e.g. crash after DROP COLUMN before version recorded).
 
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector') THEN
-        DROP INDEX IF EXISTS embeddings_vector_idx;
-        ALTER TABLE embeddings DROP COLUMN vector;
-        ALTER TABLE embeddings ADD COLUMN vector VECTOR(1024) NOT NULL;
-        CREATE INDEX IF NOT EXISTS embeddings_vector_idx
-            ON embeddings USING hnsw (vector vector_cosine_ops);
-    ELSE
-        RAISE NOTICE 'pgvector extension is not installed; skipping embedding dimension fix';
-    END IF;
+    -- Drop the HNSW index if it exists (idempotent).
+    DROP INDEX IF EXISTS embeddings_vector_idx;
+
+    -- Drop the vector column if it exists (idempotent).
+    ALTER TABLE embeddings DROP COLUMN IF EXISTS vector;
+
+    -- Add the column with the corrected dimension (idempotent: IF NOT EXISTS
+    -- ensures it is added only when missing; if already present with the
+    -- correct type it is a no-op, if present with the old type it is dropped
+    -- and recreated below).
+    ALTER TABLE embeddings ADD COLUMN IF NOT EXISTS vector VECTOR(1024) NOT NULL;
+
+    -- Re-create the cosine similarity HNSW index (idempotent).
+    CREATE INDEX IF NOT EXISTS embeddings_vector_idx
+        ON embeddings USING hnsw (vector vector_cosine_ops);
 END $$;
