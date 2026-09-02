@@ -79,8 +79,8 @@ func main() {
 			}
 		}
 
-		if cfg.BedrockModelID != "" {
-			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockModelID)
+		if cfg.BedrockChatModelID != "" {
+			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockChatModelID)
 			if err != nil {
 				log.Printf("WARNING: failed to init Bedrock client: %v — chat disabled", err)
 			} else {
@@ -92,10 +92,11 @@ func main() {
 				})
 				memoryService := services.NewMemoryService(conversationRepo)
 				chatService := services.NewChatService(aiService, memoryService)
-				routes.RegisterChat(mux, handlers.NewChatHandler(chatService))
+				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
+				routes.RegisterTailor(mux, handlers.NewTailorHandler(aiService), jwtManager)
 			}
 		} else {
-			log.Println("WARNING: BEDROCK_MODEL_ID not set — chat disabled")
+			log.Println("WARNING: BEDROCK_CHAT_MODEL_ID not set — chat disabled")
 		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")

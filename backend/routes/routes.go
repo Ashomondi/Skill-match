@@ -34,8 +34,14 @@ func RegisterResumes(mux *http.ServeMux, h *handlers.ResumeHandler, jwt *utils.J
 	mux.Handle("DELETE /api/resumes/{id}", auth(http.HandlerFunc(h.Delete)))
 }
 
-func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler) {
-	mux.HandleFunc("POST /api/chat", h.Chat)
+func RegisterChat(mux *http.ServeMux, h *handlers.ChatHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("POST /api/chat", auth(http.HandlerFunc(h.Chat)))
+}
+
+func RegisterTailor(mux *http.ServeMux, h *handlers.TailorHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("POST /api/tailor", auth(http.HandlerFunc(h.Generate)))
 }
 
 func RegisterJobs(mux *http.ServeMux, h *handlers.JobsHandler, jwt *utils.JWTManager) {
