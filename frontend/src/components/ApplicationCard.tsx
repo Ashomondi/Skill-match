@@ -3,8 +3,6 @@ import { ExternalLink, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Application } from '../services/application';
 
-const statusStyle: Record<Application['status'], string> = { applied: 'bg-[var(--status-applied)]/15 text-[var(--text-heading)]', screening: 'bg-[var(--status-screening)]/15 text-[var(--text-heading)]', interview: 'bg-[var(--status-interview)]/15 text-[var(--text-heading)]', offer: 'bg-[var(--status-offer)]/15 text-[var(--text-heading)]', rejected: 'bg-[var(--status-rejected)]/10 text-[var(--status-rejected)]', withdrawn: 'bg-[var(--bg-card)] text-[var(--text-muted)]' };
-
 export const ApplicationCard = React.memo(({ application, onStatusChange, updating }: { application: Application; onStatusChange: (status: Application["status"]) => void; updating: boolean }) => (
   <article className="flex flex-col gap-4 border-b border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-5 last:border-b-0 sm:rounded-lg sm:border">
     <div className="flex items-start gap-3">
