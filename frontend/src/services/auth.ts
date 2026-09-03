@@ -1,8 +1,4 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-const DEMO_AUTH_ENABLED = import.meta.env.DEV && import.meta.env.VITE_DEMO_AUTH_ENABLED === 'true';
-const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL;
-const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD;
-const DEMO_NAME = import.meta.env.VITE_DEMO_NAME || 'Demo User';
 
 const errorMessage = async (response: Response, fallback: string): Promise<string> => {
   const body = await response.json().catch(() => ({}));
@@ -32,16 +28,6 @@ export interface AuthResponse {
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    if (DEMO_AUTH_ENABLED && credentials.email === DEMO_EMAIL && credentials.password === DEMO_PASSWORD) {
-      const data: AuthResponse = {
-        token: 'local-demo-token',
-        user: { id: 'local-demo-user', email: DEMO_EMAIL, fullName: DEMO_NAME },
-      };
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      return data;
-    }
-
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS idx_jobs_search;
+
+ALTER TABLE jobs DROP COLUMN IF EXISTS work_type;
+ALTER TABLE jobs DROP COLUMN IF EXISTS seniority;

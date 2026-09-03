@@ -108,8 +108,6 @@ npm run dev
 
 The frontend reads `VITE_API_BASE_URL` (default `http://localhost:8080/api`);
 override it if the backend runs elsewhere (e.g. `http://localhost:8090/api`).
-Optional demo-login vars: `VITE_DEMO_AUTH_ENABLED`, `VITE_DEMO_EMAIL`,
-`VITE_DEMO_PASSWORD`, `VITE_DEMO_NAME`.
 
 ## Running
 
