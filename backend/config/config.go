@@ -22,15 +22,6 @@ type Config struct {
 	BedrockRegion      string
 	BedrockModelID     string
 	BedrockChatModelID string
-
-	MCPEndpoint  string
-	MCPAPIKey    string
-	MCPClusterID string
-
-	BedrockEmbedModelID string
-	AgentRouterAPIKey   string
-	AgentRouterBaseURL  string
-	AgentRouterModel    string
 }
 
 func Load() (*Config, error) {
@@ -64,12 +55,6 @@ func Load() (*Config, error) {
 		BedrockRegion:      bedrockRegion(),
 		BedrockModelID:     bedrockModelID(),
 		BedrockChatModelID: bedrockChatModelID(),
-		MCPClusterID:       mcpClusterID(),
-
-		BedrockEmbedModelID: bedrockEmbedModelID(),
-		AgentRouterAPIKey:   getEnv("AGENTROUTER_API_KEY", ""),
-		AgentRouterBaseURL:  getEnv("AGENTROUTER_BASE_URL", "https://agentrouter.org/v1"),
-		AgentRouterModel:    getEnv("AGENTROUTER_MODEL", "gpt-5.6-sol"),
 	}
 
 	return cfg, nil

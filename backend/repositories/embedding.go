@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
+
+	"skill-match/backend/models"
 )
 
 // EmbeddingDim is the fixed vector dimension enforced by the VECTOR(1024)
@@ -105,8 +107,8 @@ func (r *EmbeddingRepository) Upsert(ctx context.Context, e *Embedding) (*Embedd
 	if !e.SourceType.valid() {
 		return nil, fmt.Errorf("%w: source_type %q is not one of resume|conversation|job", ErrInvalidEmbeddingInput, e.SourceType)
 	}
-	if len(e.Vector) != EmbeddingDim {
-		return nil, fmt.Errorf("%w: got %d dims, want %d", ErrEmbeddingWrongDimension, len(e.Vector), EmbeddingDim)
+	if len(e.Vector) != models.EmbeddingDim {
+		return nil, fmt.Errorf("%w: got %d dims, want %d", ErrEmbeddingWrongDimension, len(e.Vector), models.EmbeddingDim)
 	}
 
 	q := fmt.Sprintf(`
@@ -138,8 +140,8 @@ func (r *EmbeddingRepository) GetBySource(ctx context.Context, sourceType Embedd
 // on; it must stay index-backed (ORDER BY <-> ... LIMIT), never fall back
 // to scanning + sorting in application code.
 func (r *EmbeddingRepository) FindSimilar(ctx context.Context, queryVector []float32, sourceType EmbeddingSourceType, userID string, k int) ([]SimilarEmbedding, error) {
-	if len(queryVector) != EmbeddingDim {
-		return nil, fmt.Errorf("%w: got %d dims, want %d", ErrEmbeddingWrongDimension, len(queryVector), EmbeddingDim)
+	if len(queryVector) != models.EmbeddingDim {
+		return nil, fmt.Errorf("%w: got %d dims, want %d", ErrEmbeddingWrongDimension, len(queryVector), models.EmbeddingDim)
 	}
 	if k <= 0 {
 		k = 10

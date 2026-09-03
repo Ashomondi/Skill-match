@@ -56,7 +56,7 @@ func memoryTestUser(t *testing.T, pool *pgxpool.Pool) *repositories.User {
 // value is dominated by the seed, so two vectors with similar seeds have a
 // tiny cosine distance and are reliably recalled as nearest neighbors.
 func embeddingVector(seed float32) []float32 {
-	vec := make([]float32, repositories.EmbeddingDim)
+	vec := make([]float32, models.EmbeddingDim)
 	vec[0] = seed
 	vec[1] = seed * 0.5
 	vec[2] = seed * 0.25

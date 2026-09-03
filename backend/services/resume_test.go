@@ -105,6 +105,13 @@ func (f *fakeResumeRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (f *fakeResumeRepo) UpdateStatus(_ context.Context, id string, status models.ResumeStatus, parsedText, failureReason *string) error {
+	f.byID[id].Status = status
+	f.byID[id].ParsedText = parsedText
+	f.byID[id].FailureReason = failureReason
+	return nil
+}
+
 const (
 	testUserID = "user-1"
 	pdfBody    = "%PDF-1.4 fake resume content"

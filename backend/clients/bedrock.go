@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"strings"
 
-	"skill-match/backend/repositories"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/smithy-go"
+
+	"skill-match/backend/models"
 )
 
 type BedrockClient struct {
@@ -144,8 +144,8 @@ func (c *BedrockClient) GenerateEmbedding(ctx context.Context, embedModelID, tex
 		return nil, fmt.Errorf("parsing embedding response: %w", err)
 	}
 
-	if len(response.Embedding) != repositories.EmbeddingDim {
-		return nil, fmt.Errorf("unexpected embedding dimension: got %d, want %d", len(response.Embedding), repositories.EmbeddingDim)
+	if len(response.Embedding) != models.EmbeddingDim {
+		return nil, fmt.Errorf("unexpected embedding dimension: got %d, want %d", len(response.Embedding), models.EmbeddingDim)
 	}
 
 	return response.Embedding, nil
