@@ -1,10 +1,33 @@
+# Environment variables
 .env
+.env.*
 .env.local
+!.env.example
+
+# Dependencies and builds
 node_modules/
-frontend/dist/
 frontend/node_modules/
-cockroach-*/
+dist/
+frontend/dist/
+*.local
+
+# Test and coverage artifacts
+coverage/
+*.out
 coverage.out
+backend/coverage.out
+backend/coverage/
+test-results/
+frontend/test-results/
+playwright-report/
+frontend/playwright-report/
+
+# OS and logs
+.DS_Store
+*.log
+
+# External tools and notes
+cockroach-*/
 shorts
 open_issues.md
 IMPLEMENTATION_PLAN.md

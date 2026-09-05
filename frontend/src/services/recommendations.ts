@@ -1,6 +1,5 @@
 import { Job } from './jobs';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, authHeaders, getErrorMessage } from './api';
 
 export interface Recommendation extends Job {
   relevanceScore?: number;
@@ -30,12 +29,11 @@ const normalizeRecommendation = (item: any): Recommendation => {
 
 export const recommendationsService = {
   async list(): Promise<Recommendation[]> {
-    const token = localStorage.getItem('token');
     const response = await fetch(`${API_BASE_URL}/recommendations`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: authHeaders(),
     });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'Recommendations could not be loaded.'));
     const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(body?.error || body?.message || 'Recommendations could not be loaded.');
     const items = Array.isArray(body) ? body : body?.recommendations ?? body?.jobs ?? body?.data ?? [];
     return Array.isArray(items) ? items.map(normalizeRecommendation) : [];
   },

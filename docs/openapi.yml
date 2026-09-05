@@ -4,39 +4,161 @@ info:
   title: Skill-Match API
   version: 1.0.0
   description: |
-    REST API documentation for the Skill-Match application.
+    REST API documentation for the SkillMatch AI-powered job search and career assistant platform.
 
-    The resume API allows authenticated users to upload, update,
-    and delete their resumes.
+    Provides endpoints for user authentication, resume management, AI conversational assistant,
+    job search & vector recommendation, saved job bookmarks, and job application tracking.
 
 servers:
   - url: http://localhost:8080
     description: Local development server
 
 tags:
+  - name: Health
+    description: System health check and dependency status
+  - name: Authentication
+    description: User registration and JWT login
   - name: Resumes
-    description: Resume management endpoints
+    description: Resume upload, parsing status, and lifecycle management
+  - name: Chat
+    description: AI career assistant and conversational memory
+  - name: Tailor
+    description: Resume tailoring for specific job listings
+  - name: Jobs
+    description: Job discovery, search, and detail retrieval
+  - name: Recommendations
+    description: Vector similarity and semantic job matching
+  - name: Saved Jobs
+    description: User job bookmarks and shortlists
+  - name: Applications
+    description: Job application tracking and hiring pipeline stages
 
 paths:
 
-  /api/resumes:
+  /health:
+    get:
+      summary: Health check
+      description: Returns overall system status and dependency connectivity (CockroachDB and Amazon S3).
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: One or more critical dependencies are down
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/auth/register:
     post:
-      summary: Upload a resume
+      summary: Register a new account
+      description: Creates a new user profile with email, password, and full name.
+      operationId: registerUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRegisterRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid email or password under 8 characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      summary: Login user
+      description: Authenticates user credentials and returns a JWT Bearer token.
+      operationId: loginUser
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/resumes:
+    get:
+      summary: List user resumes
+      description: Returns all resumes uploaded by the authenticated user.
+      operationId: listResumes
+      tags:
+        - Resumes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of resumes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Resume'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Upload or replace a resume
       description: |
         Upload a PDF or DOCX resume for the authenticated user.
 
-        The uploaded resume must:
-        - Be in PDF or DOCX format
-        - Not exceed 5 MB
-        - Contain valid file content matching its extension
-
+        To replace an existing resume, include the `replaceId` form field with the target resume UUID.
+        File size must not exceed 5 MB.
       operationId: uploadResume
       tags:
         - Resumes
-
       security:
         - bearerAuth: []
-
       requestBody:
         required: true
         content:
@@ -49,335 +171,739 @@ paths:
                 resume:
                   type: string
                   format: binary
-                  description: |
-                    Resume file in PDF or DOCX format.
-                    Maximum allowed size is 5 MB.
-
+                  description: Resume file in PDF or DOCX format (max 5 MB).
+                replaceId:
+                  type: string
+                  description: Optional UUID of the resume to replace.
       responses:
-
         '201':
           description: Resume uploaded successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UploadResumeResponse'
-              example:
-                message: resume uploaded successfully
-                resume_id: "550e8400-e29b-41d4-a716-446655440000"
-                status: uploaded
-                resume:
-                  id: "550e8400-e29b-41d4-a716-446655440000"
-                  status: uploaded
-                  version: 1
-
         '400':
-          description: Invalid resume upload
+          description: Invalid file format, empty file, or form error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalidForm:
-                  summary: Invalid multipart form
-                  value:
-                    error: invalid multipart form
-
-                missingFile:
-                  summary: Resume file missing
-                  value:
-                    error: resume file is required
-
-                invalidType:
-                  summary: Invalid file type
-                  value:
-                    error: only PDF and DOCX resumes are allowed
-
-                tooLarge:
-                  summary: File exceeds size limit
-                  value:
-                    error: resume must not exceed 5 MB
-
-                emptyFile:
-                  summary: Empty file
-                  value:
-                    error: resume file cannot be empty
-
         '401':
           description: Authentication required
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: authentication required
-
-        '500':
-          description: Internal server error while uploading the resume
+        '413':
+          description: Resume exceeds 5 MB size limit
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: failed to upload resume
-
 
   /api/resumes/{id}:
-
-    put:
-      summary: Update a resume
-      description: |
-        Replace an existing resume belonging to the authenticated user.
-
-        The new resume must:
-        - Be in PDF or DOCX format
-        - Not exceed 5 MB
-        - Contain valid file content matching its extension
-
-      operationId: updateResume
+    get:
+      summary: Get resume details
+      description: Retrieves a single resume metadata record including status and failure reasons.
+      operationId: getResume
       tags:
         - Resumes
-
       security:
         - bearerAuth: []
-
       parameters:
         - name: id
           in: path
           required: true
-          description: Unique identifier of the resume
+          description: Resume UUID
           schema:
             type: string
-          example: "550e8400-e29b-41d4-a716-446655440000"
-
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - resume
-              properties:
-                resume:
-                  type: string
-                  format: binary
-                  description: |
-                    Replacement resume file in PDF or DOCX format.
-                    Maximum allowed size is 5 MB.
-
       responses:
-
         '200':
-          description: Resume updated successfully
+          description: Resume details
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UpdateResumeResponse'
-              example:
-                message: resume updated successfully
-                resume_id: "550e8400-e29b-41d4-a716-446655440000"
-                version: 2
-                status: uploaded
-                resume:
-                  id: "550e8400-e29b-41d4-a716-446655440000"
-                  status: uploaded
-                  version: 2
-
-        '400':
-          description: Invalid request or resume file
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                invalidForm:
-                  summary: Invalid multipart form
-                  value:
-                    error: invalid multipart form
-
-                missingFile:
-                  summary: Resume file missing
-                  value:
-                    error: resume file is required
-
-                missingId:
-                  summary: Resume ID missing
-                  value:
-                    error: resume ID is required
-
-                invalidType:
-                  summary: Invalid file type
-                  value:
-                    error: only PDF and DOCX resumes are allowed
-
-                tooLarge:
-                  summary: File exceeds size limit
-                  value:
-                    error: resume must not exceed 5 MB
-
-                emptyFile:
-                  summary: Empty file
-                  value:
-                    error: resume file cannot be empty
-
+                $ref: '#/components/schemas/Resume'
         '401':
           description: Authentication required
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: authentication required
-
         '403':
-          description: User does not have permission to update this resume
+          description: Permission denied
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: you do not have permission to update this resume
-
         '404':
           description: Resume not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: resume not found
-
-        '500':
-          description: Internal server error while updating the resume
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: failed to update resume
-
 
     delete:
       summary: Delete a resume
-      description: |
-        Delete a resume belonging to the authenticated user.
-
+      description: Deletes a resume record and its backing file in object storage.
       operationId: deleteResume
       tags:
         - Resumes
-
       security:
         - bearerAuth: []
-
       parameters:
         - name: id
           in: path
           required: true
-          description: Unique identifier of the resume
+          description: Resume UUID
           schema:
             type: string
-          example: "550e8400-e29b-41d4-a716-446655440000"
-
       responses:
-
         '200':
           description: Resume deleted successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeleteResumeResponse'
-              example:
-                message: resume deleted successfully
-                resume_id: "550e8400-e29b-41d4-a716-446655440000"
-
-        '400':
-          description: Resume ID is required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: resume ID is required
-
         '401':
           description: Authentication required
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: authentication required
-
         '403':
-          description: User does not have permission to delete this resume
+          description: Permission denied
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: you do not have permission to delete this resume
-
         '404':
           description: Resume not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: resume not found
 
-        '500':
-          description: Internal server error while deleting the resume
+  /api/chat:
+    post:
+      summary: Send chat message to AI assistant
+      description: Dispatches a message to Amazon Bedrock with conversation history and optional resume context.
+      operationId: sendChatMessage
+      tags:
+        - Chat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: AI response message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Missing or empty message
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: failed to delete resume
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream AI provider failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppErrorResponse'
 
+    get:
+      summary: Get chat conversation history
+      description: Retrieves the authenticated user's persistent chat turn history.
+      operationId: getChatHistory
+      tags:
+        - Chat
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Max turns to return (default 50, max 100)
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Chat history messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatHistoryResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tailor:
+    post:
+      summary: Tailor resume for job listing
+      description: Generates an AI-tailored resume variant and highlight notes matching a target job description.
+      operationId: tailorResume
+      tags:
+        - Tailor
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TailorRequest'
+      responses:
+        '200':
+          description: Tailored resume output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TailorResponse'
+        '400':
+          description: Missing resumeId or jobDescription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs/search:
+    get:
+      summary: Search jobs
+      description: Searches job listings by keyword, location, and remote preference with pagination.
+      operationId: searchJobs
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Keyword search query
+          schema:
+            type: string
+        - name: location
+          in: query
+          required: false
+          description: Location filter
+          schema:
+            type: string
+        - name: remote
+          in: query
+          required: false
+          description: Filter remote positions
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          required: false
+          description: Page size (1-50, default 10)
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          required: false
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Paginated search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobSearchResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/jobs/{id}:
+    get:
+      summary: Get job by ID
+      description: Retrieves full posting details for a single job.
+      operationId: getJob
+      tags:
+        - Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/recommendations:
+    get:
+      summary: Get personalized recommendations
+      description: Returns vector-ranked job recommendations computed against the user's parsed resume embedding.
+      operationId: getRecommendations
+      tags:
+        - Recommendations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: resume_id
+          in: query
+          required: false
+          description: Specific resume UUID to match against
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching job recommendations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationsResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/saved-jobs:
+    get:
+      summary: List saved jobs
+      description: Returns all jobs bookmarked by the authenticated user.
+      operationId: listSavedJobs
+      tags:
+        - Saved Jobs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Saved jobs list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SavedJob'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Save a job
+      description: Bookmarks a job for the authenticated user.
+      operationId: saveJob
+      tags:
+        - Saved Jobs
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveJobRequest'
+      responses:
+        '200':
+          description: Job saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SavedJob'
+        '400':
+          description: Missing job_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/saved-jobs/{job_id}:
+    delete:
+      summary: Remove saved job
+      description: Removes a job from the user's bookmarked list.
+      operationId: removeSavedJob
+      tags:
+        - Saved Jobs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: Job UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bookmark removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: saved job removed successfully
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/applications:
+    get:
+      summary: List applications
+      description: Returns all tracked job applications for the user.
+      operationId: listApplications
+      tags:
+        - Applications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Applications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Application'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Track an application
+      description: Records a new job application.
+      operationId: createApplication
+      tags:
+        - Applications
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApplicationRequest'
+      responses:
+        '201':
+          description: Application tracked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          description: Invalid job_id or status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/applications/{id}:
+    get:
+      summary: Get application details
+      description: Retrieves a single application record and its audit history.
+      operationId: getApplication
+      tags:
+        - Applications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update application stage
+      description: Updates the status stage of an application (e.g. applied -> interview).
+      operationId: updateApplication
+      tags:
+        - Applications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application UUID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateApplicationRequest'
+      responses:
+        '200':
+          description: Stage updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+        '400':
+          description: Invalid status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete an application
+      description: Deletes an application record.
+      operationId: deleteApplication
+      tags:
+        - Applications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Application UUID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Application deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: application deleted successfully
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Application not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
 components:
 
   securitySchemes:
-
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: |
-        JWT authentication.
-
-        Include the token in the Authorization header:
-
-        Authorization: Bearer <JWT_TOKEN>
-
+      description: "Include the JWT token in the Authorization header: Bearer <token>"
 
   schemas:
 
-    Resume:
+    HealthResponse:
       type: object
-      description: Resume resource returned by the API.
+      properties:
+        status:
+          type: string
+          example: healthy
+        dependencies:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                example: ok
+              error:
+                type: string
+      required:
+        - status
+        - dependencies
+
+    AuthRegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          minLength: 8
+          example: secretpass123
+        full_name:
+          type: string
+          example: Jane Doe
+
+    AuthLoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          example: secretpass123
+
+    User:
+      type: object
       properties:
         id:
           type: string
-          description: Unique identifier of the resume
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          example: user@example.com
+        full_name:
+          type: string
+          example: Jane Doe
 
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: login successful
+        token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/User'
+
+    Resume:
+      type: object
+      description: Resume entity representing metadata and processing status.
+      properties:
+        id:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        original_filename:
+          type: string
+          example: jane_doe_cv.pdf
+        content_type:
+          type: string
+          example: application/pdf
+        file_size_bytes:
+          type: integer
+          example: 245100
         status:
           type: string
-          description: Current processing status of the resume
-          example: uploaded
-
-        version:
-          type: integer
-          description: Resume version number
-          example: 1
-
+          enum: [uploaded, parsing, parsed, failed]
+          example: parsed
+        failure_reason:
+          type: string
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T12:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T12:00:05Z"
       required:
         - id
+        - original_filename
         - status
-        - version
-
 
     UploadResumeResponse:
       type: object
@@ -385,57 +911,18 @@ components:
         message:
           type: string
           example: resume uploaded successfully
-
         resume_id:
           type: string
-          description: Unique identifier of the uploaded resume
-          example: "550e8400-e29b-41d4-a716-446655440000"
-
+          example: 550e8400-e29b-41d4-a716-446655440000
         status:
           type: string
           example: uploaded
-
         resume:
           $ref: '#/components/schemas/Resume'
-
       required:
         - message
         - resume_id
         - status
-        - resume
-
-
-    UpdateResumeResponse:
-      type: object
-      properties:
-        message:
-          type: string
-          example: resume updated successfully
-
-        resume_id:
-          type: string
-          description: Unique identifier of the updated resume
-          example: "550e8400-e29b-41d4-a716-446655440000"
-
-        version:
-          type: integer
-          description: New version number of the resume
-          example: 2
-
-        status:
-          type: string
-          example: uploaded
-
-        resume:
-          $ref: '#/components/schemas/Resume'
-
-      required:
-        - message
-        - resume_id
-        - version
-        - status
-        - resume
-
 
     DeleteResumeResponse:
       type: object
@@ -443,16 +930,271 @@ components:
         message:
           type: string
           example: resume deleted successfully
-
         resume_id:
           type: string
-          description: Unique identifier of the deleted resume
-          example: "550e8400-e29b-41d4-a716-446655440000"
-
+          example: 550e8400-e29b-41d4-a716-446655440000
       required:
         - message
         - resume_id
 
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          maxLength: 4000
+          example: Find remote Go positions matching my resume
+        resumeId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    ChatResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Here are 3 backend Go roles matching your background...
+      required:
+        - message
+
+    ChatMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 770e8400-e29b-41d4-a716-446655440001
+        role:
+          type: string
+          enum: [user, assistant, system]
+          example: user
+        content:
+          type: string
+          example: Hello!
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-03-01T12:30:00Z"
+      required:
+        - id
+        - role
+        - content
+
+    ChatHistoryResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+      required:
+        - messages
+
+    TailorRequest:
+      type: object
+      required:
+        - resumeId
+        - jobDescription
+      properties:
+        resumeId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        jobDescription:
+          type: string
+          example: Looking for a Senior Go Engineer experienced with Kubernetes and microservices...
+
+    TailorResponse:
+      type: object
+      properties:
+        tailoredText:
+          type: string
+          example: Senior Backend Engineer with deep experience in Go and Kubernetes...
+        keyHighlights:
+          type: array
+          items:
+            type: string
+          example:
+            - Highlighted Go concurrency patterns
+            - Emphasized Kubernetes cluster administration
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 110e8400-e29b-41d4-a716-446655440001
+        external_id:
+          type: string
+          example: greenhouse-982341
+        title:
+          type: string
+          example: Staff Backend Engineer
+        company:
+          type: string
+          example: CloudScale Inc.
+        location:
+          type: string
+          example: San Francisco, CA
+        description:
+          type: string
+          example: We are seeking a backend engineer to design distributed databases...
+        salary:
+          type: string
+          example: $180,000 - $220,000
+        remote:
+          type: boolean
+          example: true
+        source_url:
+          type: string
+          example: https://jobs.example.com/staff-backend
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T09:00:00Z"
+      required:
+        - id
+        - title
+        - company
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 42
+        limit:
+          type: integer
+          example: 10
+        offset:
+          type: integer
+          example: 0
+
+    JobSearchResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+      required:
+        - jobs
+
+    Recommendation:
+      type: object
+      properties:
+        job:
+          $ref: '#/components/schemas/Job'
+        match_score:
+          type: number
+          example: 92
+        relevance_score:
+          type: number
+          example: 0.92
+        reasons:
+          type: array
+          items:
+            type: string
+          example:
+            - Matches Go and PostgreSQL skills
+            - Experience level aligns with requirements
+
+    RecommendationsResponse:
+      type: object
+      properties:
+        recommendations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Recommendation'
+      required:
+        - recommendations
+
+    SavedJob:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 990e8400-e29b-41d4-a716-446655440000
+        job_id:
+          type: string
+          example: 110e8400-e29b-41d4-a716-446655440001
+        saved_at:
+          type: string
+          format: date-time
+          example: "2026-03-01T15:00:00Z"
+        job:
+          $ref: '#/components/schemas/Job'
+      required:
+        - id
+        - job_id
+
+    SaveJobRequest:
+      type: object
+      required:
+        - job_id
+      properties:
+        job_id:
+          type: string
+          example: 110e8400-e29b-41d4-a716-446655440001
+
+    ApplicationStatus:
+      type: string
+      enum: [saved, applied, screening, interview, offer, rejected, withdrawn]
+      example: applied
+
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 440e8400-e29b-41d4-a716-446655440000
+        user_id:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        job_id:
+          type: string
+          example: 110e8400-e29b-41d4-a716-446655440001
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-03-02T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-03-02T10:00:00Z"
+        job:
+          $ref: '#/components/schemas/Job'
+      required:
+        - id
+        - job_id
+        - status
+
+    CreateApplicationRequest:
+      type: object
+      required:
+        - job_id
+      properties:
+        job_id:
+          type: string
+          example: 110e8400-e29b-41d4-a716-446655440001
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+
+    UpdateApplicationRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
 
     ErrorResponse:
       type: object
@@ -460,7 +1202,21 @@ components:
         error:
           type: string
           description: Human-readable error message
-          example: resume not found
-
+          example: invalid request body
       required:
         - error
+
+    AppErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: User-safe error description
+          example: The AI service is busy right now. Please try again in a moment.
+        code:
+          type: string
+          enum: [validation, storage, database, auth, internal]
+          example: internal
+      required:
+        - error
+        - code

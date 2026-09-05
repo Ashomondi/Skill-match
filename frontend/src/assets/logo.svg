@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80" role="img" aria-label="SkillMatch logo">
+  <defs>
+    <linearGradient id="sm-accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#B08D57"/>
+      <stop offset="1" stop-color="#D9B98A"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="14" width="48" height="48" rx="12" fill="url(#sm-accent)"/>
+  <path d="M24 46V30l8 8 8-8v16" fill="none" stroke="#3A2A1C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="68" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="bold" fill="#3A2A1C">Skill</text>
+  <text x="130" y="48" font-family="Georgia, 'Times New Roman', serif" font-size="34" font-weight="bold" fill="#B08D57">Match</text>
+</svg>

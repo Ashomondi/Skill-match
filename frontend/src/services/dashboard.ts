@@ -1,14 +1,24 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, authHeaders, getErrorMessage } from './api';
 
 export type ApplicationStatus = 'saved' | 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 export interface RecentApplication { id: string; role: string; company: string; status: ApplicationStatus; updatedAt: string; }
 export interface DashboardData { savedJobs: number; totalApplications: number; byStatus: Record<ApplicationStatus, number>; recentApplications: RecentApplication[]; }
 const statuses: ApplicationStatus[] = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 const emptyCounts = () => Object.fromEntries(statuses.map((status) => [status, 0])) as Record<ApplicationStatus, number>;
-const request = async (path: string) => { const token = localStorage.getItem('token'); const response = await fetch(`${API_BASE_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }); const body = await response.json().catch(() => null); if (!response.ok) throw new Error(body?.error?.message || body?.error || body?.message || 'Unable to load dashboard data.'); return body; };
+
+const request = async (path: string) => {
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers: authHeaders() });
+  if (!response.ok) throw new Error(await getErrorMessage(response, 'Unable to load dashboard data.'));
+  const body = await response.json().catch(() => null);
+  return body;
+};
+
 // The backend wraps success payloads in { data: ... }.
 const unwrap = (body: any): any => (body && typeof body === 'object' && 'data' in body ? body.data : body);
-const listFrom = (body: any): any[] => { const inner = unwrap(body); return Array.isArray(inner) ? inner : inner?.applications || inner?.data || []; };
+const listFrom = (body: any): any[] => {
+  const inner = unwrap(body);
+  return Array.isArray(inner) ? inner : inner?.applications || inner?.data || [];
+};
 
 export const dashboardService = {
   async getDashboard(): Promise<DashboardData> {

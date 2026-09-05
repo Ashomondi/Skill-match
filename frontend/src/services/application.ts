@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, authHeaders, getErrorMessage } from './api';
 
 export type ApplicationStatus = 'applied' | 'screening' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
 export interface Application { id: string; jobId?: string; role: string; company: string; status: ApplicationStatus; appliedAt: string; resumeUrl?: string; }
@@ -35,11 +35,21 @@ export const applicationService = {
     return normalize(await response.json());
   },
   async list(): Promise<Application[]> {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/applications`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const response = await fetch(`${API_BASE_URL}/applications`, { headers: authHeaders() });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'Applications could not be loaded.'));
     const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(body?.error || body?.message || 'Applications could not be loaded.');
     const items = Array.isArray(body) ? body : body?.applications ?? body?.data ?? [];
     return Array.isArray(items) ? items.map(normalize) : [];
+  },
+
+  async apply(jobId: string): Promise<Application> {
+    const response = await fetch(`${API_BASE_URL}/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'Your application could not be submitted.'));
+    const body = await response.json().catch(() => ({}));
+    return normalize(body.application ?? body);
   },
 };

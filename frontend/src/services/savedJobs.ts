@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, authHeaders, getErrorMessage } from './api';
 
 export interface SavedJob {
   id: string;
@@ -11,11 +11,6 @@ export interface SavedJob {
   matchScore?: number;
   savedAt?: string;
 }
-
-const headers = (): Record<string, string> => {
-  const token = localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
 
 const normalizeSavedJob = (item: any): SavedJob => {
   const job = item.job || item.job_details || item;
@@ -32,29 +27,36 @@ const normalizeSavedJob = (item: any): SavedJob => {
   };
 };
 
-const errorMessage = async (response: Response, fallback: string) => {
-  const body = await response.json().catch(() => ({}));
-  if (typeof body.error === "string") return body.error;
-  if (typeof body.error?.message === "string") return body.error.message;
-  return typeof body.message === "string" ? body.message : fallback;
-};
-
 export const savedJobsService = {
-  async save(jobId: string): Promise<void> {
-    const response = await fetch(API_BASE_URL + "/saved-jobs", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) });
-    if (!response.ok) throw new Error(await errorMessage(response, "The job could not be saved."));
-  },
-
   async list(): Promise<SavedJob[]> {
-    const response = await fetch(`${API_BASE_URL}/saved-jobs`, { headers: headers() });
-    if (!response.ok) throw new Error(await errorMessage(response, 'Saved jobs could not be loaded.'));
+    const response = await fetch(`${API_BASE_URL}/saved-jobs`, { headers: authHeaders() });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'Saved jobs could not be loaded.'));
     const body = await response.json().catch(() => []);
     const items = Array.isArray(body) ? body : body.saved_jobs ?? body.savedJobs ?? body.data ?? [];
     return Array.isArray(items) ? items.map(normalizeSavedJob) : [];
   },
 
-  async remove(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/saved-jobs/${id}`, { method: 'DELETE', headers: headers() });
-    if (!response.ok) throw new Error(await errorMessage(response, 'The saved job could not be removed.'));
+  async remove(idOrJobId: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/saved-jobs/${encodeURIComponent(idOrJobId)}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'The saved job could not be removed.'));
+  },
+
+  async save(jobId: string): Promise<SavedJob> {
+    const response = await fetch(`${API_BASE_URL}/saved-jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+    if (!response.ok) throw new Error(await getErrorMessage(response, 'The job could not be saved.'));
+    const body = await response.json().catch(() => ({}));
+    return normalizeSavedJob(body.saved_job ?? body.data ?? body);
+  },
+
+  async isSaved(jobId: string): Promise<boolean> {
+    const jobs = await this.list();
+    return jobs.some((job) => job.jobId === jobId);
   },
 };

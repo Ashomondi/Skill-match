@@ -123,9 +123,27 @@ export const Login: React.FC = () => {
         </div>
         {error ? <div role="alert" className="flex gap-2 rounded border border-[#B5573C] bg-[#B5573C]/10 p-3 text-sm text-[#3A2A1C]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B5573C]" />{error || "That email and password don't match."}</div> : null}
         <button type="submit" disabled={isSubmitting} className="flex h-11 w-full items-center justify-center rounded bg-[#5C3A21] text-[15px] font-semibold text-[#F6F0E6] transition hover:bg-[#4A2F1A] hover:shadow-[0px_4px_16px_rgba(92,58,33,0.14)] disabled:pointer-events-none disabled:opacity-70">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log in'}</button>
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            onClick={async () => {
+              setEmail('demo@skill-match.test');
+              setPassword('password123');
+              try {
+                await login({ email: 'demo@skill-match.test', password: 'password123' });
+                navigate('/dashboard');
+              } catch (e) {
+                console.error(e);
+              }
+            }}
+            className="mt-2 flex h-10 w-full items-center justify-center rounded border border-[#B08D57] bg-[#EFE6D6]/80 text-[14px] font-semibold text-[#5C3A21] transition hover:bg-[#E3D7C4]"
+          >
+            Try demo account
+          </button>
+        )}
       </form>
       <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#D8C9B2]" /><span className="bg-[#F6F0E6] px-2 text-xs text-[#8A7B6B]">or</span><span className="h-px flex-1 bg-[#D8C9B2]" /></div>
-      <button type="button" className="flex h-11 w-full items-center justify-center gap-3 rounded border border-[#3A2A1C]/40 text-[15px] font-medium text-[#3A2A1C]"><GoogleMark />Continue with Google</button>
+      <button type="button" disabled className="flex h-11 w-full items-center justify-center gap-3 rounded border border-[#3A2A1C]/20 bg-[#EFE6D6]/40 text-[15px] font-medium text-[#3A2A1C]/50 cursor-not-allowed" title="Google authentication is coming soon" aria-label="Continue with Google (coming soon)"><GoogleMark />Continue with Google (Coming soon)</button>
       <p className="mt-7 text-center text-sm text-[#8A7B6B]">Don&apos;t have an account? <Link to="/register" className="font-semibold text-[#3A2A1C] hover:underline">Sign up</Link></p>
     </AuthLayout>
   );

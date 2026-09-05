@@ -1,13 +1,13 @@
 // frontend/src/hooks/useUpload.ts
 
 import { useState, useCallback } from 'react';
-import { resumeService, Resume } from '../services/resume';
+import { Resume, resumeService } from '../services/resume';
 
 const ALLOWED_TYPES = [
-	'application/pdf',
-	'application/msword',
-	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-	'text/plain',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
 ];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB, matches the backend limit
 
@@ -19,7 +19,7 @@ export function useUpload() {
 
   const validateFile = (file: File): string | null => {
     if (!ALLOWED_TYPES.includes(file.type)) {
-		return 'Invalid file type. Please upload a PDF, DOC, DOCX, or TXT format.';
+      return 'Invalid file type. Please upload a PDF, DOC, DOCX, or TXT format.';
     }
     if (file.size > MAX_FILE_SIZE) {
       return 'File is too large. Maximum allowed size is 5MB.';
@@ -41,7 +41,10 @@ export function useUpload() {
     setIsUploading(true);
 
     try {
-      const response = await resumeService.upload(file, setProgress, replaceId);
+      const response = await resumeService.upload(file, {
+        replaceId,
+        onProgress: setProgress,
+      });
       setSuccessData(response);
       setProgress(100);
       return response;
