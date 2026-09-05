@@ -1,9 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+import { API_BASE_URL, getErrorMessage } from './api';
 
-const errorMessage = async (response: Response, fallback: string): Promise<string> => {
-  const body = await response.json().catch(() => ({}));
-  return body?.error?.message || body?.message || body?.error || fallback;
-};
+const DEMO_AUTH_ENABLED = import.meta.env.DEV && import.meta.env.VITE_DEMO_AUTH_ENABLED !== 'false';
+const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL || 'demo@skill-match.test';
+const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD || 'password123';
+const DEMO_NAME = import.meta.env.VITE_DEMO_NAME || 'Demo User';
 
 // The backend wraps success payloads in { data: ... }.
 const unwrap = (body: any): AuthResponse => (body?.data ?? body) as AuthResponse;
@@ -28,6 +28,22 @@ export interface AuthResponse {
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    if (
+      DEMO_AUTH_ENABLED &&
+      DEMO_EMAIL &&
+      DEMO_PASSWORD &&
+      credentials.email === DEMO_EMAIL &&
+      credentials.password === DEMO_PASSWORD
+    ) {
+      const demoData: AuthResponse = {
+        token: 'demo-jwt-token',
+        user: { id: 'demo-user-1', email: DEMO_EMAIL, fullName: DEMO_NAME },
+      };
+      localStorage.setItem('token', demoData.token);
+      localStorage.setItem('user', JSON.stringify(demoData.user));
+      return demoData;
+    }
+
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -35,7 +51,7 @@ export const authService = {
     });
 
     if (!response.ok) {
-      throw new Error(await errorMessage(response, 'Failed to log in'));
+      throw new Error(await getErrorMessage(response, 'Failed to log in'));
     }
 
     const data = unwrap(await response.json());
@@ -52,7 +68,7 @@ export const authService = {
     });
 
     if (!response.ok) {
-      throw new Error(await errorMessage(response, 'Failed to register account'));
+      throw new Error(await getErrorMessage(response, 'Failed to register account'));
     }
 
     const data = unwrap(await response.json());
