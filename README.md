@@ -13,7 +13,7 @@ are stored in S3 (MinIO locally).
 | Backend     | Go (`net/http`)                   |
 | Database    | PostgreSQL (pgvector)             |
 | Object store| Amazon S3 / MinIO (S3-compatible) |
-| AI          | Amazon Bedrock (planned)          |
+| AI          | Amazon Bedrock                    |
 | Auth        | JWT (HS256)                       |
 
 ## Repository layout
@@ -114,46 +114,28 @@ override it if the backend runs elsewhere (e.g. `http://localhost:8090/api`).
 - Backend: `go run ./cmd/api` — listens on `PORT`, applies migrations, serves
   `/health` (pings PostgreSQL; 503 when degraded).
 - Frontend: `npm run dev` inside `frontend/`.
-- Root scripts: `npm run dev` / `npm run build` (build the frontend).
+- Build: `npm run build` inside `frontend/`.
 
 ## Testing
 
 ```sh
+# Backend unit tests
 cd backend
-go test ./...                # unit tests (no infrastructure required)
+go test ./...
 
-# integration tests against live infra:
-export TEST_DATABASE_URL='postgres://...'
-export TEST_S3_ENDPOINT='http://localhost:9000'
-export TEST_S3_BUCKET='initone'
-export TEST_S3_ACCESS_KEY='minioadmin'
-export TEST_S3_SECRET_KEY='minioadmin123'
-go test -tags integration ./...
+# Frontend unit & E2E tests
+cd frontend
+npm test
+npm run test:e2e
 ```
-
-## API endpoints
-
-See [docs/API.md](docs/API.md). Implemented today: health, auth
-(register/login), and resume management. Chat, job search, recommendations,
-saved jobs, and applications endpoints are planned.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Data model](docs/DATABASE.md)
 - [API reference](docs/API.md)
+- [OpenAPI Specification](docs/openapi.yml)
 - [Contributors](docs/CONTRIBUTORS.md)
-
-## Known limitations
-
-- The chat, job-search/recommendation, saved-jobs, and application-tracking API
-  endpoints are not yet implemented; the frontend pages for those features are
-  partially backed by mock/hardcoded data.
-- Amazon Bedrock integration (chat + embeddings) is pending; the memory layer
-  is fully implemented and tested against PostgreSQL.
-- When `JWT_SECRET` is unset, an ephemeral secret is generated per boot, so
-  existing tokens are invalidated on restart.
-- Resume upload is capped at 5 MB and accepts `.pdf`, `.doc`, `.docx`, `.txt`.
 
 ## License
 
