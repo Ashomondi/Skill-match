@@ -52,6 +52,10 @@ func (f *fakeStorage) Key(userID, fileID string) string {
 	return "resumes/" + userID + "/" + fileID
 }
 
+func (f *fakeStorage) Ping(_ context.Context) error {
+	return nil
+}
+
 // fakeResumeRepo is an in-memory ResumeRepository.
 type fakeResumeRepo struct {
 	byID      map[string]*models.Resume
@@ -74,10 +78,18 @@ func (f *fakeResumeRepo) Create(_ context.Context, r *models.Resume) (*models.Re
 		return nil, f.createErr
 	}
 	f.seq++
-	r.ID = fmt.Sprintf("res-%d", f.seq)
-	f.byID[r.ID] = r
-	f.byUser[r.UserID] = append(f.byUser[r.UserID], r)
-	return r, nil
+	id := fmt.Sprintf("res-%d", f.seq)
+
+	// The real repository inserts and RETURNING-scans a fresh row, so the
+	// returned value is isolated from later UpdateStatus calls. Emulate that
+	// by storing a copy and returning a separate copy.
+	stored := *r
+	stored.ID = id
+	f.byID[id] = &stored
+	f.byUser[r.UserID] = append(f.byUser[r.UserID], &stored)
+
+	created := stored
+	return &created, nil
 }
 
 func (f *fakeResumeRepo) GetByID(_ context.Context, id string) (*models.Resume, error) {
@@ -106,9 +118,13 @@ func (f *fakeResumeRepo) Delete(_ context.Context, id string) error {
 }
 
 func (f *fakeResumeRepo) UpdateStatus(_ context.Context, id string, status models.ResumeStatus, parsedText, failureReason *string) error {
-	f.byID[id].Status = status
-	f.byID[id].ParsedText = parsedText
-	f.byID[id].FailureReason = failureReason
+	res, ok := f.byID[id]
+	if !ok {
+		return repositories.ErrResumeNotFound
+	}
+	res.Status = status
+	res.ParsedText = parsedText
+	res.FailureReason = failureReason
 	return nil
 }
 

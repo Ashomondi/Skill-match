@@ -7,13 +7,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"skill-match/backend/clients"
 	"skill-match/backend/utils"
 )
 
 type HealthHandler struct {
-	db       databasePinger
-	s3Client storagePinger
+	db      databasePinger
+	storage storagePinger
 }
 
 type databasePinger interface {
@@ -24,16 +23,12 @@ type storagePinger interface {
 	Ping(context.Context) error
 }
 
-func NewHealthHandler(db *pgxpool.Pool, s3Client *clients.S3Client) *HealthHandler {
+func NewHealthHandler(db *pgxpool.Pool, storage storagePinger) *HealthHandler {
 	var database databasePinger
 	if db != nil {
 		database = db
 	}
-	var storage storagePinger
-	if s3Client != nil {
-		storage = s3Client
-	}
-	return &HealthHandler{db: database, s3Client: storage}
+	return &HealthHandler{db: database, storage: storage}
 }
 
 type dependencyStatus struct {
@@ -55,7 +50,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	deps := map[string]dependencyStatus{
 		"database": checkDatabase(ctx, h.db),
-		"storage":  checkS3(ctx, h.s3Client),
+		"storage":  checkStorage(ctx, h.storage),
 	}
 
 	overallStatus := http.StatusOK
@@ -82,11 +77,11 @@ func checkDatabase(ctx context.Context, db databasePinger) dependencyStatus {
 	return dependencyStatus{Status: "ok"}
 }
 
-func checkS3(ctx context.Context, s3Client storagePinger) dependencyStatus {
-	if s3Client == nil {
+func checkStorage(ctx context.Context, storage storagePinger) dependencyStatus {
+	if storage == nil {
 		return dependencyStatus{Status: "not configured"}
 	}
-	if err := s3Client.Ping(ctx); err != nil {
+	if err := storage.Ping(ctx); err != nil {
 		return dependencyStatus{Status: "down", Error: "storage unreachable"}
 	}
 	return dependencyStatus{Status: "ok"}

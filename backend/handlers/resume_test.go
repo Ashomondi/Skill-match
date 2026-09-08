@@ -41,6 +41,9 @@ func (f *handlerFakeStorage) Delete(_ context.Context, key string) error {
 func (f *handlerFakeStorage) Key(userID, fileID string) string {
 	return "resumes/" + userID + "/" + fileID
 }
+func (f *handlerFakeStorage) Ping(_ context.Context) error {
+	return nil
+}
 
 type handlerFakeResumeRepo struct {
 	byID   map[string]*models.Resume

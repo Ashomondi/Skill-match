@@ -16,6 +16,8 @@ require (
 	golang.org/x/crypto v0.55.0
 )
 
+require github.com/ledongthuc/pdf v0.0.0-20260903153007-b3c860c23753
+
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.17 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.34

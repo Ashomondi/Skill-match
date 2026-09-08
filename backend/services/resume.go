@@ -20,13 +20,14 @@ var (
 	ErrResumeUnauthorized = ErrResumeAccessDenied // alias used by AI/recommendation services
 )
 
-// ObjectStorage is the subset of the S3 client the resume service needs.
-// clients.S3Client satisfies this interface.
+// ObjectStorage is the subset of the storage clients the resume service
+// needs. clients.S3Client and clients.LocalFS both satisfy this interface.
 type ObjectStorage interface {
 	Put(ctx context.Context, key string, body []byte, contentType string) error
 	PresignDownload(ctx context.Context, key string, expiry time.Duration) (string, error)
 	Delete(ctx context.Context, key string) error
 	Key(userID, fileID string) string
+	Ping(ctx context.Context) error
 }
 
 // ResumeRepository defines the persistence operations required by the resume
@@ -39,15 +40,21 @@ type ResumeRepository interface {
 	UpdateStatus(ctx context.Context, id string, status models.ResumeStatus, parsedText, failureReason *string) error
 }
 
-// ResumeService coordinates resume storage (S3) and metadata persistence
-// (PostgreSQL). It enforces user ownership on every operation.
+// ResumeService coordinates resume storage (S3/local FS) and metadata
+// persistence (PostgreSQL). It enforces user ownership on every operation and
+// optionally indexes parsed text into the vector store for matching.
 type ResumeService struct {
 	repo    ResumeRepository
 	storage ObjectStorage
+	indexer *EmbeddingIndexer
 }
 
-func NewResumeService(repo ResumeRepository, storage ObjectStorage) *ResumeService {
-	return &ResumeService{repo: repo, storage: storage}
+func NewResumeService(repo ResumeRepository, storage ObjectStorage, indexer ...*EmbeddingIndexer) *ResumeService {
+	var ix *EmbeddingIndexer
+	if len(indexer) > 0 {
+		ix = indexer[0]
+	}
+	return &ResumeService{repo: repo, storage: storage, indexer: ix}
 }
 
 // storageAvailable reports whether object storage is configured. It also
@@ -115,26 +122,38 @@ func (s *ResumeService) Upload(ctx context.Context, userID, replaceID, filename,
 	// Attempt immediate parse so the UI doesn't stay on "uploaded" forever.
 	// In production this would be a background job; here we run synchronously
 	// for immediate effect.
+	var parsedText string
 	parsed, parseErr := ParseResume(ctx, userID, filename, contentType, data)
 	if parseErr == nil && parsed.Status == models.ResumeStatusParsed {
 		// Transition to parsed and set extracted text + clear failure reason.
-		_ = s.repo.UpdateStatus(ctx, parsed.ID, parsed.Status, parsed.ParsedText, nil)
+		_ = s.repo.UpdateStatus(ctx, created.ID, parsed.Status, parsed.ParsedText, nil)
+		if parsed.ParsedText != nil {
+			parsedText = *parsed.ParsedText
+		}
 	} else if parseErr != nil {
 		// Parsing failed — record the reason and mark failed.
 		failureMsg := parseErr.Error()
-		_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusFailed, nil, &failureMsg)
+		_ = s.repo.UpdateStatus(ctx, created.ID, models.ResumeStatusFailed, nil, &failureMsg)
 	} else {
 		// Parsing succeeded but status is still Uploaded (should not happen
 		// with the current ParseResume impl), so transition to Parsing then Parsed.
 		// For now, just mark as parsed with the text.
 		if parsed.ParsedText != nil {
-			_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusParsed, parsed.ParsedText, nil)
+			_ = s.repo.UpdateStatus(ctx, created.ID, models.ResumeStatusParsed, parsed.ParsedText, nil)
+			parsedText = *parsed.ParsedText
 		}
+	}
+
+	// Index the parsed text into the vector store (best effort) so the resume
+	// can participate in semantic matching.
+	if parsedText != "" {
+		s.indexer.IndexResume(ctx, created.ID, userID, parsedText)
 	}
 
 	if replaceID != "" {
 		old, err := s.repo.GetByID(ctx, replaceID)
 		if err == nil && old != nil {
+			s.indexer.RemoveResume(ctx, replaceID)
 			_ = s.storage.Delete(ctx, old.S3Key)
 			_ = s.repo.Delete(ctx, replaceID)
 		}
@@ -167,7 +186,8 @@ func (s *ResumeService) DownloadURL(ctx context.Context, userID, id string, expi
 	return res, url, nil
 }
 
-// Delete removes a resume the user owns: the S3 object first, then the row.
+// Delete removes a resume the user owns: the object first, then the row and
+// its vector embedding.
 func (s *ResumeService) Delete(ctx context.Context, userID, id string) error {
 	res, err := s.getOwned(ctx, userID, id)
 	if err != nil {
@@ -181,6 +201,7 @@ func (s *ResumeService) Delete(ctx context.Context, userID, id string) error {
 	if err := s.storage.Delete(ctx, res.S3Key); err != nil {
 		return fmt.Errorf("delete resume from storage: %w", err)
 	}
+	s.indexer.RemoveResume(ctx, id)
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}

@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -29,11 +28,12 @@ func main() {
 
 	ctx := context.Background()
 
-	jwtManager := utils.NewJWTManager(jwtSecret(cfg), 24*time.Hour)
+	jwtManager := utils.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
 
 	mux := routes.NewMux()
 
 	var pool *pgxpool.Pool
+	var indexer *services.EmbeddingIndexer
 	if cfg.DatabaseURL != "" {
 		var err error
 		pool, err = clients.NewPool(ctx, cfg.DatabaseURL, clients.PoolOptions{})
@@ -59,6 +59,15 @@ func main() {
 		jobSource := services.NewExternalJobSource(seedSource)
 		matchingSvc := services.NewMatchingService()
 
+		// Vector embedding provider: Bedrock Titan when configured, otherwise a
+		// deterministic local embedder so matching works with zero external deps.
+		embeddingRepo := repositories.NewEmbeddingRepository(pool)
+		if generator, err := buildEmbeddingGenerator(ctx, cfg); err != nil {
+			log.Printf("WARNING: %v — vector embedding features disabled", err)
+		} else {
+			indexer = services.NewEmbeddingIndexer(generator, embeddingRepo)
+		}
+
 		savedJobs := handlers.NewSavedJobsHandler(services.NewSavedJobService(repositories.NewSavedJobRepository(pool)))
 		routes.RegisterSavedJobs(mux, savedJobs, jwtManager)
 		routes.RegisterApplications(mux,
@@ -66,7 +75,7 @@ func main() {
 			jwtManager,
 		)
 
-		jobService := services.NewJobService(jobRepo, jobSource)
+		jobService := services.NewJobService(jobRepo, jobSource, indexer)
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
 		routes.RegisterRecommendations(
 			mux,
@@ -121,22 +130,43 @@ func main() {
 			ForcePathStyle: cfg.S3ForcePathStyle,
 		})
 		if err != nil {
-			log.Printf("WARNING: failed to connect to S3: %v — storage health checks disabled", err)
+			log.Printf("WARNING: failed to connect to S3: %v — falling back to local storage", err)
 		}
 	} else {
-		log.Println("WARNING: S3_BUCKET_NAME not set — storage health checks disabled")
+		log.Println("INFO: S3_BUCKET_NAME not set — using local filesystem storage")
+	}
+
+	// Storage backend for resumes. Prefer S3 when configured; otherwise fall
+	// back to local disk so resume upload/download/delete work with zero
+	// external dependencies.
+	var storage services.ObjectStorage
+	var localFS *clients.LocalFS
+	if s3Client != nil {
+		if err := s3Client.Ping(ctx); err != nil {
+			log.Printf("WARNING: S3 bucket unreachable: %v — falling back to local storage", err)
+			s3Client = nil
+		} else {
+			storage = s3Client
+		}
+	}
+	if storage == nil {
+		localFS, err = clients.NewLocalFS(cfg.StorageDir, "/storage")
+		if err != nil {
+			log.Fatalf("init local storage: %v", err)
+		}
+		storage = localFS
+		if pool != nil {
+			mux.Handle("/storage/", localFS.Handler())
+		}
+		log.Printf("INFO: local filesystem storage active at %s (served at /storage)", cfg.StorageDir)
 	}
 
 	if pool != nil {
-		var storage services.ObjectStorage
-		if s3Client != nil {
-			storage = s3Client
-		}
-		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), storage)
+		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), storage, indexer)
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 
-	healthHandler := handlers.NewHealthHandler(pool, s3Client)
+	healthHandler := handlers.NewHealthHandler(pool, storage)
 	routes.RegisterAll(mux,
 		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
 	)
@@ -153,18 +183,25 @@ func main() {
 	}
 }
 
-func jwtSecret(cfg *config.Config) string {
-	if cfg.JWTSecret != "" {
-		return cfg.JWTSecret
+// buildEmbeddingGenerator picks an embedding provider:
+//   - Amazon Bedrock Titan when BEDROCK_EMBED_MODEL_ID is set and a Bedrock
+//     client can be constructed (requires AWS credentials).
+//   - Otherwise the deterministic LocalEmbedder, which needs no external
+//     services and keeps the whole pgvector pipeline functional offline.
+func buildEmbeddingGenerator(ctx context.Context, cfg *config.Config) (clients.EmbeddingGenerator, error) {
+	if cfg.BedrockEmbedModelID != "" {
+		bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockEmbedModelID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to init Bedrock embed client: %w", err)
+		}
+		embedder, err := clients.NewBedrockEmbedder(bedrockClient, cfg.BedrockEmbedModelID)
+		if err != nil {
+			return nil, fmt.Errorf("init Bedrock embedder: %w", err)
+		}
+		log.Printf("INFO: using Amazon Bedrock embeddings (%s)", cfg.BedrockEmbedModelID)
+		return embedder, nil
 	}
-	log.Println("WARNING: JWT_SECRET not set — using an ephemeral development secret")
-	return devSecret()
-}
 
-func devSecret() string {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "skill-match-development-secret"
-	}
-	return hex.EncodeToString(buf)
+	log.Println("INFO: BEDROCK_EMBED_MODEL_ID not set — using deterministic local embedder")
+	return clients.NewLocalEmbedder(), nil
 }

@@ -48,3 +48,6 @@ func bedrockChatModelID() string {
 	return getEnv("BEDROCK_CHAT_MODEL_ID", "")
 }
 
+func bedrockEmbedModelID() string {
+	return getEnv("BEDROCK_EMBED_MODEL_ID", "")
+}

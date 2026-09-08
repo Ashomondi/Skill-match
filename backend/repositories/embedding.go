@@ -93,22 +93,36 @@ func NewEmbeddingRepository(db *pgxpool.Pool) *EmbeddingRepository {
 	return &EmbeddingRepository{db: db}
 }
 
-const embeddingColumns = `id, user_id, source_type, source_id, vector, created_at`
+// user_id is COALESCE'd to ” so job-corpus rows (which store NULL) scan
+// cleanly into Go strings. User-owned source types are validated in Upsert.
+const embeddingColumns = `id, COALESCE(user_id::text, '') AS user_id, source_type, source_id, vector, created_at`
 
 // Upsert inserts an embedding for (source_type, source_id), or replaces
 // the existing one if that source has already been embedded — re-parsing
 // a resume or re-summarizing a conversation should not accumulate stale
 // vectors. This relies on the unique index on (source_type, source_id)
 // defined in migrations/003_memory.sql.
+//
+// userID is required for user-owned sources (resume, conversation). The job
+// corpus is shared across users, so job embeddings are stored with a NULL
+// user_id — pass an empty UserID for EmbeddingSourceJob.
 func (r *EmbeddingRepository) Upsert(ctx context.Context, e *Embedding) (*Embedding, error) {
-	if e == nil || e.UserID == "" || e.SourceID == "" {
-		return nil, fmt.Errorf("%w: user_id and source_id are required", ErrInvalidEmbeddingInput)
+	if e == nil || e.SourceID == "" {
+		return nil, fmt.Errorf("%w: source_id is required", ErrInvalidEmbeddingInput)
 	}
 	if !e.SourceType.valid() {
 		return nil, fmt.Errorf("%w: source_type %q is not one of resume|conversation|job", ErrInvalidEmbeddingInput, e.SourceType)
 	}
+	if e.SourceType != EmbeddingSourceJob && e.UserID == "" {
+		return nil, fmt.Errorf("%w: user_id is required for %q embeddings", ErrInvalidEmbeddingInput, e.SourceType)
+	}
 	if len(e.Vector) != models.EmbeddingDim {
 		return nil, fmt.Errorf("%w: got %d dims, want %d", ErrEmbeddingWrongDimension, len(e.Vector), models.EmbeddingDim)
+	}
+
+	var userID any
+	if e.UserID != "" {
+		userID = e.UserID
 	}
 
 	q := fmt.Sprintf(`
@@ -118,7 +132,7 @@ func (r *EmbeddingRepository) Upsert(ctx context.Context, e *Embedding) (*Embedd
 		DO UPDATE SET vector = excluded.vector, user_id = excluded.user_id
 		RETURNING %s`, embeddingColumns)
 
-	row := r.db.QueryRow(ctx, q, e.UserID, e.SourceType, e.SourceID, pgvector.NewVector(e.Vector))
+	row := r.db.QueryRow(ctx, q, userID, e.SourceType, e.SourceID, pgvector.NewVector(e.Vector))
 	return scanEmbedding(row)
 }
 

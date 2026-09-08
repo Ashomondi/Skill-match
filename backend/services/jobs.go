@@ -27,17 +27,24 @@ type SourceJob struct {
 }
 
 type JobService struct {
-	repo   *repositories.JobRepository
-	source JobSource
+	repo    *repositories.JobRepository
+	source  JobSource
+	indexer *EmbeddingIndexer
 }
 
 func NewJobService(
 	repo *repositories.JobRepository,
 	source JobSource,
+	indexer ...*EmbeddingIndexer,
 ) *JobService {
+	var ix *EmbeddingIndexer
+	if len(indexer) > 0 {
+		ix = indexer[0]
+	}
 	return &JobService{
-		repo:   repo,
-		source: source,
+		repo:    repo,
+		source:  source,
+		indexer: ix,
 	}
 }
 
@@ -56,7 +63,7 @@ func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
 			skipped++
 			continue
 		}
-		_, err = s.repo.Create(ctx, &repositories.Job{
+		created, err := s.repo.Create(ctx, &repositories.Job{
 			ExternalID:  source.ExternalID,
 			Title:       source.Title,
 			Company:     source.Company,
@@ -71,6 +78,9 @@ func (s *JobService) IngestJobs(ctx context.Context) (int, int, error) {
 		if err != nil {
 			return ingested, skipped, err
 		}
+		// Index the new job into the vector corpus (best effort) so it can be
+		// surfaced via semantic job matching.
+		s.indexer.IndexJob(ctx, created.ID, created.Title, created.Description)
 		ingested++
 	}
 	return ingested, skipped, nil

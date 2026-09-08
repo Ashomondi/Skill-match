@@ -1,0 +1,6 @@
+.env
+.git
+coverage
+data
+Dockerfile
+*.md

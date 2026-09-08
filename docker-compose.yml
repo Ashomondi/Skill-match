@@ -1,0 +1,76 @@
+# SkillMatch local development stack.
+#
+# Default profile runs PostgreSQL (with pgvector) plus the API. Resume files
+# are stored on the local filesystem (see STORAGE_DIR) so no object storage or
+# AWS account is required.
+#
+#   docker compose up --build
+#
+# Optional: to exercise the S3-compatible path instead of local disk, uncomment
+# the `minio` service and set S3_BUCKET_NAME/S3_ENDPOINT below (or in backend/.env).
+
+name: skillmatch
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: skillmatch-pg
+    environment:
+      POSTGRES_USER: skillmatch
+      POSTGRES_PASSWORD: skillmatch
+      POSTGRES_DB: skillmatch
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillmatch -d skillmatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: skillmatch-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://skillmatch:skillmatch@db:5432/skillmatch
+      # Ephemeral secret is fine for local dev; override for stable tokens.
+      JWT_SECRET: dev-only-change-me
+      CORS_ALLOWED_ORIGIN: http://localhost:5173
+      # Local filesystem storage (no S3/AWS required).
+      STORAGE_DIR: /data/resumes
+      # S3/MinIO (optional): uncomment and start the minio service to use it.
+      # S3_BUCKET_NAME: resumes
+      # S3_ENDPOINT: http://minio:9000
+      # AWS_ACCESS_KEY_ID: minioadmin
+      # AWS_SECRET_ACCESS_KEY: minioadmin
+      # S3_FORCE_PATH_STYLE: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - resume-data:/data
+
+  # Optional S3-compatible object storage for the resume S3 path.
+  # minio:
+  #   image: minio/minio:latest
+  #   container_name: skillmatch-minio
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   volumes:
+  #     - minio-data:/data
+
+volumes:
+  pgdata:
+  resume-data:
+  # minio-data:
