@@ -14,7 +14,7 @@ type healthPinger struct{ err error }
 func (p healthPinger) Ping(context.Context) error { return p.err }
 
 func TestHealthReturnsHealthyWhenDependenciesRespond(t *testing.T) {
-	h := &HealthHandler{db: healthPinger{}, s3Client: healthPinger{}}
+	h := &HealthHandler{db: healthPinger{}, storage: healthPinger{}}
 	r := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	h.Health(w, r)
@@ -32,7 +32,7 @@ func TestHealthReturnsHealthyWhenDependenciesRespond(t *testing.T) {
 }
 
 func TestHealthReturnsServiceUnavailableForFailedDependency(t *testing.T) {
-	h := &HealthHandler{db: healthPinger{err: errors.New("connection refused")}, s3Client: healthPinger{}}
+	h := &HealthHandler{db: healthPinger{err: errors.New("connection refused")}, storage: healthPinger{}}
 	r := httptest.NewRequest(http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 	h.Health(w, r)

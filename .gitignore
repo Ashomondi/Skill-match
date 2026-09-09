@@ -3,6 +3,7 @@
 node_modules/
 frontend/dist/
 frontend/node_modules/
+backend/data/
 cockroach-*/
 coverage.out
 shorts

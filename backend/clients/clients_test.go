@@ -2,36 +2,9 @@ package clients
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
-
-func TestNewS3ClientRequiresBucket(t *testing.T) {
-	_, err := NewS3Client(context.Background(), S3Config{Bucket: ""})
-	if err == nil {
-		t.Fatal("expected an error when the bucket name is empty")
-	}
-	if !strings.Contains(err.Error(), "bucket") {
-		t.Fatalf("expected a bucket-related error, got %v", err)
-	}
-}
-
-func TestS3ClientKeyFormat(t *testing.T) {
-	client, err := NewS3Client(context.Background(), S3Config{
-		Region: "us-east-1",
-		Bucket: "initone",
-	})
-	if err != nil {
-		t.Fatalf("init: %v", err)
-	}
-
-	key := client.Key("user-123", "file-abc.pdf")
-	want := "resumes/user-123/file-abc.pdf"
-	if key != want {
-		t.Fatalf("expected key %q, got %q", want, key)
-	}
-}
 
 func TestPoolOptionsWithDefaults(t *testing.T) {
 	opts := (PoolOptions{}).withDefaults()

@@ -42,7 +42,7 @@ func WriteRequestError(w http.ResponseWriter, r *http.Request, err error) {
 			attrs = append(attrs, key, value)
 		}
 	}
-	// Error text is deliberately excluded: database/AWS errors may contain
+	// Error text is deliberately excluded: database/provider errors may contain
 	// queries, object keys, endpoints, or other sensitive implementation data.
 	slog.Error("request failed", attrs...)
 

@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"log"
 	"net/http"
 	"time"
@@ -29,7 +27,7 @@ func main() {
 
 	ctx := context.Background()
 
-	jwtManager := utils.NewJWTManager(jwtSecret(cfg), 24*time.Hour)
+	jwtManager := utils.NewJWTManager(cfg.JWTSecret, 24*time.Hour)
 
 	mux := routes.NewMux()
 
@@ -86,14 +84,16 @@ func main() {
 			}
 		}()
 
-		if cfg.BedrockChatModelID != "" {
-			bedrockClient, err := clients.NewBedrockClient(ctx, cfg.BedrockRegion, cfg.BedrockChatModelID)
+		// Chat and CV tailoring are powered by Google Gemini. When no API key is
+		// configured the endpoints are not registered.
+		if cfg.GeminiAPIKey != "" {
+			geminiClient, err := clients.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiModel)
 			if err != nil {
-				log.Printf("WARNING: failed to init Bedrock client: %v — chat disabled", err)
+				log.Printf("WARNING: failed to init Gemini client: %v — chat disabled", err)
 			} else {
 				conversationRepo := repositories.NewConversationRepository(pool)
 				aiService := services.NewAIService(services.NewAIServiceInput{
-					Bedrock:       bedrockClient,
+					Generator:     geminiClient,
 					Conversations: conversationRepo,
 					Resumes:       repositories.NewResumeRepository(pool),
 				})
@@ -101,42 +101,30 @@ func main() {
 				chatService := services.NewChatService(aiService, memoryService)
 				routes.RegisterChat(mux, handlers.NewChatHandler(chatService), jwtManager)
 				routes.RegisterTailor(mux, handlers.NewTailorHandler(aiService), jwtManager)
+				log.Printf("INFO: chat/tailor enabled with Gemini model %q", cfg.GeminiModel)
 			}
 		} else {
-			log.Println("WARNING: BEDROCK_CHAT_MODEL_ID not set — chat disabled")
+			log.Println("WARNING: GEMINI_API_KEY not set — chat disabled")
 		}
 	} else {
 		log.Println("WARNING: DATABASE_URL not set — auth endpoints are disabled")
 	}
 
-	var s3Client *clients.S3Client
-	if cfg.S3Bucket != "" {
-		var err error
-		s3Client, err = clients.NewS3Client(ctx, clients.S3Config{
-			Region:         cfg.AWSRegion,
-			Bucket:         cfg.S3Bucket,
-			Endpoint:       cfg.S3Endpoint,
-			AccessKey:      cfg.S3AccessKey,
-			SecretKey:      cfg.S3SecretKey,
-			ForcePathStyle: cfg.S3ForcePathStyle,
-		})
-		if err != nil {
-			log.Printf("WARNING: failed to connect to S3: %v — storage health checks disabled", err)
-		}
-	} else {
-		log.Println("WARNING: S3_BUCKET_NAME not set — storage health checks disabled")
+	// Resume files are stored on the local filesystem and served from /storage.
+	var storage *clients.LocalFS
+	storage, err = clients.NewLocalFS(cfg.StorageDir, "/storage")
+	if err != nil {
+		log.Fatalf("init local storage: %v", err)
 	}
+	mux.Handle("/storage/", storage.Handler())
+	log.Printf("INFO: local file storage active at %s (served at /storage)", cfg.StorageDir)
 
 	if pool != nil {
-		var storage services.ObjectStorage
-		if s3Client != nil {
-			storage = s3Client
-		}
 		resumeService := services.NewResumeService(repositories.NewResumeRepository(pool), storage)
 		routes.RegisterResumes(mux, handlers.NewResumeHandler(resumeService), jwtManager)
 	}
 
-	healthHandler := handlers.NewHealthHandler(pool, s3Client)
+	healthHandler := handlers.NewHealthHandler(pool, storage)
 	routes.RegisterAll(mux,
 		func(m *http.ServeMux) { routes.RegisterHealth(m, healthHandler) },
 	)
@@ -151,20 +139,4 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.Port, handler); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func jwtSecret(cfg *config.Config) string {
-	if cfg.JWTSecret != "" {
-		return cfg.JWTSecret
-	}
-	log.Println("WARNING: JWT_SECRET not set — using an ephemeral development secret")
-	return devSecret()
-}
-
-func devSecret() string {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "skill-match-development-secret"
-	}
-	return hex.EncodeToString(buf)
 }

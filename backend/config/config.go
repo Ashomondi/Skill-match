@@ -9,19 +9,11 @@ type Config struct {
 
 	DatabaseURL   string
 	JWTSecret     string
-	CORSOrigin    string
+	StorageDir    string
 	AllowedOrigin string
 
-	AWSRegion        string
-	S3Bucket         string
-	S3Endpoint       string
-	S3AccessKey      string
-	S3SecretKey      string
-	S3ForcePathStyle bool
-
-	BedrockRegion      string
-	BedrockModelID     string
-	BedrockChatModelID string
+	GeminiAPIKey string
+	GeminiModel  string
 }
 
 func Load() (*Config, error) {
@@ -42,19 +34,11 @@ func Load() (*Config, error) {
 
 		DatabaseURL:   dbURL,
 		JWTSecret:     jwtSecret,
-		CORSOrigin:    getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
+		StorageDir:    getEnv("STORAGE_DIR", "./data/resumes"),
 		AllowedOrigin: getEnv("CORS_ALLOWED_ORIGIN", "http://localhost:5173"),
 
-		AWSRegion:        awsRegion(),
-		S3Bucket:         s3Bucket(),
-		S3Endpoint:       getEnv("S3_ENDPOINT", ""),
-		S3AccessKey:      getEnv("AWS_ACCESS_KEY_ID", ""),
-		S3SecretKey:      getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		S3ForcePathStyle: getEnv("S3_FORCE_PATH_STYLE", "true") == "true",
-
-		BedrockRegion:      bedrockRegion(),
-		BedrockModelID:     bedrockModelID(),
-		BedrockChatModelID: bedrockChatModelID(),
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
+		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
 	}
 
 	return cfg, nil

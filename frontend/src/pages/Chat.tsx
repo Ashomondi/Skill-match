@@ -1,9 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { Menu } from 'lucide-react';
+import { FileText, Menu } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { ChatBox } from '../components/ChatBox';
+import { CvPicker } from '../components/CvPicker';
 import { Sidebar } from '../components/Sidebar';
 import { chatService, Conversation } from '../services/chat';
+import { useResumeContext } from '../hooks/useResumeContext';
+import { isResumeReady } from '../services/resume';
+
+const INCLUDE_CV_KEY = 'skillmatch-include-cv';
+const initialIncludeCv = () => { try { return localStorage.getItem(INCLUDE_CV_KEY) !== '0'; } catch { return true; } };
 
 const initialState = () => {
   const conversations = chatService.list();
@@ -16,6 +22,19 @@ export const Chat: React.FC = () => {
   const [conversations, setConversations] = useState(initialConversations);
   const [active, setActive] = useState(initialActive);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [includeCv, setIncludeCv] = useState(initialIncludeCv);
+  const rc = useResumeContext();
+
+  const usableCv = rc.active && isResumeReady(rc.active) ? rc.active : null;
+  const resumeId = includeCv && usableCv ? usableCv.id : undefined;
+
+  const toggleIncludeCv = () => {
+    setIncludeCv((value) => {
+      const next = !value;
+      try { localStorage.setItem(INCLUDE_CV_KEY, next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const updateConversation = useCallback((updated: Conversation) => {
     setActive(updated);
@@ -46,7 +65,46 @@ export const Chat: React.FC = () => {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-muted)]">Ask about roles, tailor your experience, or plan your next application.</p>
             </div>
           </div>
-          <ChatBox conversation={active} onChange={updateConversation} />
+
+          <div className="mb-4 space-y-3">
+            <CvPicker
+              resumes={rc.resumes}
+              active={rc.active}
+              loading={rc.loading}
+              uploading={rc.isUploading}
+              error={rc.error}
+              onUpload={rc.upload}
+              onSelect={rc.select}
+              title="Assistant CV context"
+              description="Upload your CV and the assistant can reference it when you ask for tailored advice, rewrites, or feedback."
+            />
+            <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)] px-4 py-3 shadow-sm">
+              <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-heading)]">
+                <FileText size={16} className="text-[var(--text-muted)]" />
+                Include my CV as context for messages
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeCv}
+                aria-label="Include my CV as context"
+                disabled={!usableCv}
+                onClick={toggleIncludeCv}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${includeCv && usableCv ? 'bg-[var(--btn-primary-bg)]' : 'bg-[var(--border-hairline)]'}`}
+              >
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${includeCv && usableCv ? 'translate-x-[1.4rem]' : 'translate-x-0.5'}`} />
+              </button>
+            </label>
+            {!rc.loading && !usableCv ? (
+              <p className="text-xs leading-5 text-[var(--text-muted)]">
+                {rc.active?.status === 'failed'
+                  ? `"${rc.active.name}" couldn't be parsed — replace it or upload a PDF/DOCX/TXT to enable CV context.`
+                  : 'Upload a CV above to let the assistant answer questions about your experience.'}
+              </p>
+            ) : null}
+          </div>
+
+          <ChatBox conversation={active} onChange={updateConversation} resumeId={resumeId} resumeName={usableCv?.name ?? null} />
         </div>
       </div>
     </AppShell>

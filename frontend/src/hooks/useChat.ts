@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { chatService, ChatMessage, Conversation } from '../services/chat';
 
-export function useChat(conversation: Conversation, onChange: (conversation: Conversation) => void) {
+export function useChat(conversation: Conversation, onChange: (conversation: Conversation) => void, resumeId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>(conversation.messages);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,14 +25,14 @@ export function useChat(conversation: Conversation, onChange: (conversation: Con
     const history = [...messages, userMessage];
     persist(history);
     try {
-      const reply = await chatService.send(content, history);
+      const reply = await chatService.send(content, resumeId || undefined);
       persist([...history, { id: `${Date.now()}-assistant`, role: 'assistant', content: reply, createdAt: new Date().toISOString() }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to reach the assistant.');
     } finally {
       setLoading(false);
     }
-  }, [messages, persist]);
+  }, [messages, persist, resumeId]);
 
   return { messages, loading, error, sendMessage };
 }

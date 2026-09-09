@@ -3,7 +3,7 @@ import { Menu, X } from 'lucide-react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
-const links = [['/dashboard','Dashboard'],['/chat','Chat'],['/cv-tailor','CV Tailor'],['/discover','Discover'],['/saved-jobs','Saved Jobs'],['/applications','Applications']];
+const links = [['/dashboard','Dashboard'],['/chat','Chat'],['/cv-tailor','CV Tailor'],['/resume','Resume'],['/discover','Discover'],['/saved-jobs','Saved Jobs'],['/applications','Applications']];
 const navClass = ({ isActive }: { isActive: boolean }) => `block rounded-md px-3 py-2 text-sm font-medium ${isActive ? 'bg-[var(--bg-card)] text-[var(--text-heading)] md:bg-transparent md:text-[var(--text-heading)]' : 'text-[var(--text-body)] hover:bg-[var(--bg-card)]/60 hover:text-[var(--text-heading)] md:hover:bg-transparent'}`;
 
 export const Navbar: React.FC = () => {

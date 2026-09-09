@@ -25,24 +25,26 @@ func NewResumeHandler(resumeService *services.ResumeService) *ResumeHandler {
 }
 
 type resumeResponse struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Filename   string    `json:"filename"`
-	Size       int64     `json:"size"`
-	Status     string    `json:"status"`
-	UploadedAt time.Time `json:"uploadedAt"`
-	URL        string    `json:"url,omitempty"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Filename      string    `json:"filename"`
+	Size          int64     `json:"size"`
+	Status        string    `json:"status"`
+	FailureReason *string   `json:"failureReason,omitempty"`
+	UploadedAt    time.Time `json:"uploadedAt"`
+	URL           string    `json:"url,omitempty"`
 }
 
 func toResumeResponse(r *models.Resume, url string) resumeResponse {
 	return resumeResponse{
-		ID:         r.ID,
-		Name:       r.OriginalFilename,
-		Filename:   r.OriginalFilename,
-		Size:       r.FileSizeBytes,
-		Status:     string(r.Status),
-		UploadedAt: r.CreatedAt,
-		URL:        url,
+		ID:            r.ID,
+		Name:          r.OriginalFilename,
+		Filename:      r.OriginalFilename,
+		Size:          r.FileSizeBytes,
+		Status:        string(r.Status),
+		FailureReason: r.FailureReason,
+		UploadedAt:    r.CreatedAt,
+		URL:           url,
 	}
 }
 

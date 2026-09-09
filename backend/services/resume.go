@@ -20,8 +20,8 @@ var (
 	ErrResumeUnauthorized = ErrResumeAccessDenied // alias used by AI/recommendation services
 )
 
-// ObjectStorage is the subset of the S3 client the resume service needs.
-// clients.S3Client satisfies this interface.
+// ObjectStorage is the subset of the storage client the resume service needs.
+// clients.LocalFS satisfies this interface.
 type ObjectStorage interface {
 	Put(ctx context.Context, key string, body []byte, contentType string) error
 	PresignDownload(ctx context.Context, key string, expiry time.Duration) (string, error)
@@ -51,7 +51,7 @@ func NewResumeService(repo ResumeRepository, storage ObjectStorage) *ResumeServi
 }
 
 // storageAvailable reports whether object storage is configured. It also
-// guards against a typed-nil storage value (e.g. a nil *clients.S3Client
+// guards against a typed-nil storage value (e.g. a nil *clients.LocalFS
 // boxed into the ObjectStorage interface), which a plain `== nil` check
 // misses.
 func storageAvailable(storage ObjectStorage) bool {
@@ -116,20 +116,25 @@ func (s *ResumeService) Upload(ctx context.Context, userID, replaceID, filename,
 	// In production this would be a background job; here we run synchronously
 	// for immediate effect.
 	parsed, parseErr := ParseResume(ctx, userID, filename, contentType, data)
-	if parseErr == nil && parsed.Status == models.ResumeStatusParsed {
+	switch {
+	case parseErr == nil && parsed != nil && parsed.Status == models.ResumeStatusParsed && parsed.ParsedText != nil:
 		// Transition to parsed and set extracted text + clear failure reason.
-		_ = s.repo.UpdateStatus(ctx, parsed.ID, parsed.Status, parsed.ParsedText, nil)
-	} else if parseErr != nil {
+		_ = s.repo.UpdateStatus(ctx, created.ID, parsed.Status, parsed.ParsedText, nil)
+		created.Status = parsed.Status
+		created.ParsedText = parsed.ParsedText
+
+	case parseErr != nil:
 		// Parsing failed — record the reason and mark failed.
 		failureMsg := parseErr.Error()
-		_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusFailed, nil, &failureMsg)
-	} else {
-		// Parsing succeeded but status is still Uploaded (should not happen
-		// with the current ParseResume impl), so transition to Parsing then Parsed.
-		// For now, just mark as parsed with the text.
-		if parsed.ParsedText != nil {
-			_ = s.repo.UpdateStatus(ctx, parsed.ID, models.ResumeStatusParsed, parsed.ParsedText, nil)
-		}
+		_ = s.repo.UpdateStatus(ctx, created.ID, models.ResumeStatusFailed, nil, &failureMsg)
+		created.Status = models.ResumeStatusFailed
+		created.FailureReason = &failureMsg
+
+	case parsed != nil && parsed.Status == models.ResumeStatusFailed:
+		// Parser produced a failure reason (e.g. unsupported format, no text).
+		_ = s.repo.UpdateStatus(ctx, created.ID, parsed.Status, nil, parsed.FailureReason)
+		created.Status = parsed.Status
+		created.FailureReason = parsed.FailureReason
 	}
 
 	if replaceID != "" {

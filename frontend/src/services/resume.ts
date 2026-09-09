@@ -1,5 +1,14 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+export const ACCEPTED_RESUME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+];
+export const ACCEPTED_RESUME_EXTENSIONS = '.pdf,.doc,.docx,.txt';
+export const MAX_RESUME_SIZE = 5 * 1024 * 1024;
+
 export type ResumeStatus = 'processing' | 'ready' | 'failed';
 
 export interface Resume {
@@ -8,9 +17,12 @@ export interface Resume {
   filename?: string;
   size?: number;
   status: ResumeStatus;
+  failureReason?: string;
   uploadedAt: string;
   url?: string;
 }
+
+export const isResumeReady = (resume?: Resume | null): resume is Resume => resume?.status === 'ready';
 
 const authHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
@@ -33,6 +45,7 @@ const normalize = (item: any): Resume => ({
   filename: item.filename,
   size: item.size,
   status: mapStatus(item.status),
+  failureReason: item.failureReason ?? item.failure_reason,
   uploadedAt: item.uploadedAt || item.created_at || new Date().toISOString(),
   url: item.url,
 });
