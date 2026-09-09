@@ -127,7 +127,7 @@ func testResumeService() (*ResumeService, *fakeStorage, *fakeResumeRepo) {
 func TestUploadStoresObjectAndRow(t *testing.T) {
 	svc, storage, repo := testResumeService()
 
-	res, err := svc.Upload(context.Background(), testUserID, "", "resume.pdf", pdfCT, []byte(pdfBody))
+	res, err := svc.Upload(context.Background(), testUserID, "", "resume.txt", "text/plain", []byte("John Doe\nGo Developer\n"))
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
@@ -135,17 +135,23 @@ func TestUploadStoresObjectAndRow(t *testing.T) {
 	if res.UserID != testUserID {
 		t.Errorf("expected user id %s, got %s", testUserID, res.UserID)
 	}
-	if res.Status != models.ResumeStatusUploaded {
-		t.Errorf("expected status uploaded, got %s", res.Status)
+	if res.Status != models.ResumeStatusParsed {
+		t.Errorf("expected status parsed, got %s", res.Status)
+	}
+	if res.ParsedText == nil || *res.ParsedText != "John Doe\nGo Developer\n" {
+		t.Errorf("expected parsed text to be persisted, got %v", res.ParsedText)
 	}
 	if res.S3Key == "" {
 		t.Error("expected s3 key to be set")
 	}
-	if len(storage.objects[res.S3Key]) != len(pdfBody) {
+	if len(storage.objects[res.S3Key]) != len("John Doe\nGo Developer\n") {
 		t.Error("expected object bytes to be stored under the resume s3 key")
 	}
 	if len(repo.byID) != 1 {
 		t.Errorf("expected 1 row, got %d", len(repo.byID))
+	}
+	if repo.byID[res.ID].Status != models.ResumeStatusParsed {
+		t.Errorf("expected row status parsed, got %s", repo.byID[res.ID].Status)
 	}
 }
 
@@ -306,7 +312,7 @@ func TestUploadWithoutStorageFailsCleanly(t *testing.T) {
 }
 
 func TestUploadWithTypedNilStorageFailsCleanly(t *testing.T) {
-	// Reproduces production wiring: a nil *clients.S3Client boxed into the
+	// Reproduces production wiring: a nil pointer boxed into the
 	// ObjectStorage interface is not a nil interface; the guard must catch it.
 	var storage *fakeStorage
 	svc := NewResumeService(newFakeResumeRepo(), storage)

@@ -64,20 +64,18 @@ export const chatService = {
     return next;
   },
 
-  async send(message: string, history: ChatMessage[]): Promise<string> {
+  async send(message: string, resumeId?: string): Promise<string> {
     const response = await fetch(`${API_BASE_URL}/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token() ? { Authorization: `Bearer ${token()}` } : {}),
       },
-      body: JSON.stringify({
-        message,
-        history: history.map(({ role, content }) => ({ role, content })),
-      }),
+      body: JSON.stringify({ message, ...(resumeId ? { resumeId } : {}) }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error?.message || data.error || data.message || 'The assistant could not respond.');
-    return data.reply || data.response || data.message || data.content || 'I could not generate a response.';
+    const reply = String(data.message ?? data.content ?? '');
+    return reply || 'I could not generate a response.';
   },
 };

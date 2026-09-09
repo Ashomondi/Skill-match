@@ -6,10 +6,12 @@ import { Conversation } from '../services/chat';
 interface ChatBoxProps {
   conversation: Conversation;
   onChange: (conversation: Conversation) => void;
+  resumeId?: string;
+  resumeName?: string | null;
 }
 
-export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange }) => {
-  const { messages, loading, error, sendMessage } = useChat(conversation, onChange);
+export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange, resumeId, resumeName }) => {
+  const { messages, loading, error, sendMessage } = useChat(conversation, onChange, resumeId);
   const [draft, setDraft] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -27,6 +29,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ conversation, onChange }) => {
     <div className="flex items-center gap-3 border-b border-[var(--border-hairline)] px-5 py-4">
       <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-card)] text-[var(--text-heading)]"><Sparkles size={17} /></span>
       <div className="min-w-0"><h2 className="truncate font-semibold text-[var(--text-heading)]">{conversation.title}</h2><p className="text-xs text-[var(--text-muted)]">Career assistant</p></div>
+      {resumeId && resumeName ? <span className="ml-auto hidden max-w-52 truncate rounded-full border border-[var(--border-hairline)] bg-[var(--bg-card)] px-3 py-1 text-xs font-medium text-[var(--text-heading)] sm:block" title={`Using CV: ${resumeName}`}>Using CV: {resumeName}</span> : null}
     </div>
     <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6" aria-live="polite">
       {messages.length === 0 && <div className="mx-auto mt-12 max-w-sm text-center"><Sparkles className="mx-auto text-[var(--accent-gold)]" size={24} /><p className="mt-3 font-serif text-xl font-semibold text-[var(--text-heading)]">What would you like to work on?</p><p className="mt-2 text-sm text-[var(--text-muted)]">Try asking for role recommendations or feedback on your CV.</p></div>}

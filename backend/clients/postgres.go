@@ -1,5 +1,5 @@
-// Package clients contains thin wrappers around external service SDKs
-// (PostgreSQL, S3, Bedrock, MCP). This file owns the PostgreSQL
+// Package clients contains thin wrappers around external dependencies
+// (PostgreSQL, Gemini, local file storage). This file owns the PostgreSQL
 // connection pool that every repository in repositories/ is constructed
 // with.
 package clients

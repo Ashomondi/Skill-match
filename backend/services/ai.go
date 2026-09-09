@@ -17,20 +17,20 @@ var (
 )
 
 type AIService struct {
-	bedrock       clients.BedrockGenerator
+	generator     clients.ModelGenerator
 	conversations *repositories.ConversationRepository
 	resumes       *repositories.ResumeRepository
 }
 
 type NewAIServiceInput struct {
-	Bedrock       clients.BedrockGenerator
+	Generator     clients.ModelGenerator
 	Conversations *repositories.ConversationRepository
 	Resumes       *repositories.ResumeRepository
 }
 
 func NewAIService(input NewAIServiceInput) *AIService {
 	return &AIService{
-		bedrock:       input.Bedrock,
+		generator:     input.Generator,
 		conversations: input.Conversations,
 		resumes:       input.Resumes,
 	}
@@ -54,8 +54,8 @@ func (s *AIService) GenerateResponse(
 		return nil, err
 	}
 
-	if s.bedrock == nil {
-		return nil, utils.NewInternalError(ErrAIService, map[string]string{"operation": "generate_ai_response", "service": "bedrock"})
+	if s.generator == nil {
+		return nil, utils.NewInternalError(ErrAIService, map[string]string{"operation": "generate_ai_response", "service": "generator"})
 	}
 
 	if s.conversations == nil {
@@ -114,18 +114,18 @@ func (s *AIService) GenerateResponse(
 		}
 	}
 
-	// Send context to Amazon Bedrock.
-	response, err := s.bedrock.GenerateResponse(ctx, prompt)
+	// Send the assembled context to the AI model.
+	response, err := s.generator.GenerateResponse(ctx, prompt)
 	if err != nil {
-		return nil, utils.NewUpstreamError(clients.ClassifyBedrockError(err), err, map[string]string{
-			"operation": "invoke_model", "service": "bedrock", "error_code": clients.BedrockErrorCode(err), "user_id": input.UserID,
+		return nil, utils.NewUpstreamError(clients.ClassifyGeminiError(err), err, map[string]string{
+			"operation": "generate_content", "service": "gemini", "error_code": clients.GeminiErrorCode(err), "user_id": input.UserID,
 		})
 	}
 	response = strings.TrimSpace(response)
 
 	if response == "" {
 		return nil, fmt.Errorf(
-			"%w: Bedrock returned an empty response",
+			"%w: the model returned an empty response",
 			ErrAIService,
 		)
 	}

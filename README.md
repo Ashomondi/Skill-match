@@ -2,8 +2,8 @@
 
 An AI-powered job-search assistant with **persistent agentic memory**. Built
 for the CockroachDB × AWS hackathon and migrated to PostgreSQL: PostgreSQL
-(pgvector) is the memory layer, Amazon Bedrock is the AI, and resume files
-are stored in S3 (MinIO locally).
+(pgvector) is the memory layer, Google Gemini is the AI, and resume files are
+stored on the server's local filesystem.
 
 ## Stack
 
@@ -12,8 +12,8 @@ are stored in S3 (MinIO locally).
 | Frontend    | React + Vite + TypeScript         |
 | Backend     | Go (`net/http`)                   |
 | Database    | PostgreSQL (pgvector)             |
-| Object store| Amazon S3 / MinIO (S3-compatible) |
-| AI          | Amazon Bedrock (planned)          |
+| Object store| Local filesystem (served at `/storage`) |
+| AI          | Google Gemini (generateContent REST) |
 | Auth        | JWT (HS256)                       |
 
 ## Repository layout
@@ -31,7 +31,7 @@ docs/      architecture, API, database, contributor docs
 - A PostgreSQL 16+ database with the `pgvector` extension (see
   [`scripts/setup_postgres.sh`](scripts/setup_postgres.sh) for a one-command
   local container)
-- S3-compatible object storage (MinIO for local dev, or Amazon S3)
+- A Google Gemini API key (`GEMINI_API_KEY`)
 
 ## Setup
 
@@ -64,41 +64,20 @@ go run ./cmd/api
 
 Environment variables (`backend/.env`):
 
-| Variable             | Required | Default     | Description                                  |
-| -------------------- | -------- | ----------- | -------------------------------------------- |
-| `PORT`               | no       | `8080`      | HTTP listen port                             |
-| `DATABASE_URL`       | yes      | —           | PostgreSQL connection string (postgres://)  |
-| `JWT_SECRET`         | no*      | ephemeral   | JWT signing secret (*set for stable tokens)  |
-| `JWT_EXPIRATION`     | no       | `24h`       | token lifetime (`time.ParseDuration` format) |
-| `AWS_REGION`         | no       | `us-east-1` | region used for signing                      |
-| `S3_BUCKET_NAME`     | yes**    | —           | bucket for resume files (**required for resume API) |
-| `S3_ENDPOINT`        | no       | —           | custom endpoint for MinIO/LocalStack; empty = real AWS S3 |
-| `AWS_ACCESS_KEY_ID`  | no       | —           | static credentials (used when `S3_ENDPOINT` is set) |
-| `AWS_SECRET_ACCESS_KEY` | no    | —           |                                            |
-| `S3_FORCE_PATH_STYLE`| no       | `true`      | path-style addressing (required for MinIO)   |
+| Variable          | Required | Default            | Description                                    |
+| ----------------- | -------- | ------------------ | ---------------------------------------------- |
+| `PORT`            | no       | `8080`             | HTTP listen port                               |
+| `DATABASE_URL`    | yes      | —                  | PostgreSQL connection string (postgres://)     |
+| `JWT_SECRET`      | yes      | —                  | JWT signing secret                             |
+| `CORS_ALLOWED_ORIGIN` | no   | `http://localhost:5173` | allowed browser origin(s)                 |
+| `STORAGE_DIR`     | no       | `./data/resumes`   | directory where resume files are stored        |
+| `GEMINI_API_KEY`  | no*      | —                  | Google Gemini API key (*required for chat/tailor) |
+| `GEMINI_MODEL`    | no       | `gemini-2.5-flash` | Gemini model used for chat and CV tailoring    |
 
-### 3. Object store (MinIO for local dev)
+> Note: chat (`/api/chat`) and CV tailoring (`/api/tailor`) endpoints are only
+> registered when `GEMINI_API_KEY` is set.
 
-```sh
-docker run -d -p 9000:9000 -p 9001:9001 \
-  -e "MINIO_ROOT_USER=minioadmin" -e "MINIO_ROOT_PASSWORD=minioadmin123" \
-  quay.io/minio/minio server /data --console-address ":9001"
-```
-
-Create a bucket (e.g. `initone`) in the console at `http://localhost:9001`, then
-point the backend at it:
-
-```
-S3_ENDPOINT=http://localhost:9000
-S3_BUCKET_NAME=initone
-AWS_ACCESS_KEY_ID=minioadmin
-AWS_SECRET_ACCESS_KEY=minioadmin123
-```
-
-For real AWS S3, leave `S3_ENDPOINT` empty and rely on the default credential
-chain (env vars, `~/.aws/credentials`, or an IAM role).
-
-### 4. Frontend
+### 3. Frontend
 
 ```sh
 cd frontend
@@ -112,7 +91,7 @@ override it if the backend runs elsewhere (e.g. `http://localhost:8090/api`).
 ## Running
 
 - Backend: `go run ./cmd/api` — listens on `PORT`, applies migrations, serves
-  `/health` (pings PostgreSQL; 503 when degraded).
+  `/health` (pings PostgreSQL and local storage; 503 when degraded).
 - Frontend: `npm run dev` inside `frontend/`.
 - Root scripts: `npm run dev` / `npm run build` (build the frontend).
 
@@ -122,20 +101,16 @@ override it if the backend runs elsewhere (e.g. `http://localhost:8090/api`).
 cd backend
 go test ./...                # unit tests (no infrastructure required)
 
-# integration tests against live infra:
+# integration tests against a live database:
 export TEST_DATABASE_URL='postgres://...'
-export TEST_S3_ENDPOINT='http://localhost:9000'
-export TEST_S3_BUCKET='initone'
-export TEST_S3_ACCESS_KEY='minioadmin'
-export TEST_S3_SECRET_KEY='minioadmin123'
 go test -tags integration ./...
 ```
 
 ## API endpoints
 
 See [docs/API.md](docs/API.md). Implemented today: health, auth
-(register/login), and resume management. Chat, job search, recommendations,
-saved jobs, and applications endpoints are planned.
+(register/login), resume management, job search, recommendations, saved jobs,
+applications, chat, and CV tailoring.
 
 ## Documentation
 
@@ -146,13 +121,13 @@ saved jobs, and applications endpoints are planned.
 
 ## Known limitations
 
-- The chat, job-search/recommendation, saved-jobs, and application-tracking API
-  endpoints are not yet implemented; the frontend pages for those features are
-  partially backed by mock/hardcoded data.
-- Amazon Bedrock integration (chat + embeddings) is pending; the memory layer
-  is fully implemented and tested against PostgreSQL.
-- When `JWT_SECRET` is unset, an ephemeral secret is generated per boot, so
-  existing tokens are invalidated on restart.
+- The chat assistant keeps a single per-user memory stream on the server; the
+  frontend's multiple named conversations are stored locally (localStorage) and
+  are not yet modelled as separate threads on the backend.
+- Resume parsing supports `.pdf`, `.docx`, and `.txt`. Legacy `.doc` files are
+  rejected with a clear message (convert to PDF/DOCX/TXT).
+- When `JWT_SECRET` is unset the backend refuses to start; set a stable secret
+  so tokens survive restarts.
 - Resume upload is capped at 5 MB and accepts `.pdf`, `.doc`, `.docx`, `.txt`.
 
 ## License

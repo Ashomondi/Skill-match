@@ -24,15 +24,16 @@ func newFakeApplicationRepo() *fakeApplicationRepo {
 	return &fakeApplicationRepo{byUser: map[string][]*models.Application{}}
 }
 
-func (f *fakeApplicationRepo) Create(_ context.Context, userID, jobID string) (*models.Application, error) {
+func (f *fakeApplicationRepo) Create(_ context.Context, userID, jobID, tailoredCV string) (*models.Application, error) {
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
 	a := &models.Application{
-		ID:     "app-" + string(rune('a'+len(f.created))),
-		UserID: userID,
-		JobID:  jobID,
-		Status: models.ApplicationSaved,
+		ID:         "app-" + string(rune('a'+len(f.created))),
+		UserID:     userID,
+		JobID:      jobID,
+		Status:     models.ApplicationSaved,
+		TailoredCV: tailoredCV,
 	}
 	f.created = append(f.created, a)
 	f.byUser[userID] = append(f.byUser[userID], a)

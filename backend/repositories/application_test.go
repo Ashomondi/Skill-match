@@ -41,7 +41,7 @@ func TestApplicationListByUserID(t *testing.T) {
 	repo := NewApplicationRepository(pool)
 	ctx := context.Background()
 
-	if _, err := repo.Create(ctx, user.ID, jobID); err != nil {
+	if _, err := repo.Create(ctx, user.ID, jobID, ""); err != nil {
 		t.Fatalf("create application: %v", err)
 	}
 
@@ -68,10 +68,10 @@ func TestApplicationListUserIsolation(t *testing.T) {
 	repo := NewApplicationRepository(pool)
 	ctx := context.Background()
 
-	if _, err := repo.Create(ctx, userA.ID, jobID); err != nil {
+	if _, err := repo.Create(ctx, userA.ID, jobID, ""); err != nil {
 		t.Fatalf("create for A: %v", err)
 	}
-	if _, err := repo.Create(ctx, userB.ID, jobID); err != nil {
+	if _, err := repo.Create(ctx, userB.ID, jobID, ""); err != nil {
 		t.Fatalf("create for B: %v", err)
 	}
 

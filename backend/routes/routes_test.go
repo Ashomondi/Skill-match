@@ -80,7 +80,7 @@ func TestRegisterTailorRequiresAuth(t *testing.T) {
 func TestRegisterTailorReachesHandler(t *testing.T) {
 	jwt := utils.NewJWTManager("test-secret", time.Hour)
 	mux := NewMux()
-	// Zero-value AIService makes GenerateResponse fail fast (bedrock unset),
+	// Zero-value AIService makes GenerateResponse fail fast (generator unset),
 	// which the handler surfaces as 502 — proving the route is registered and
 	// auth let the authenticated request through.
 	RegisterTailor(mux, handlers.NewTailorHandler(&services.AIService{}), jwt)

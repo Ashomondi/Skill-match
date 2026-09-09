@@ -8,6 +8,7 @@ import (
 
 	"skill-match/backend/middleware"
 	"skill-match/backend/models"
+	"skill-match/backend/repositories"
 	"skill-match/backend/services"
 )
 
@@ -20,9 +21,10 @@ func NewApplicationHandler(service *services.ApplicationService) *ApplicationHan
 }
 
 type CreateApplicationRequest struct {
-	JobID  string                   `json:"job_id"`
-	Status models.ApplicationStatus `json:"status"`
-	Notes  string                   `json:"notes,omitempty"`
+	JobID      string                   `json:"job_id"`
+	Status     models.ApplicationStatus `json:"status"`
+	Notes      string                   `json:"notes,omitempty"`
+	TailoredCV string                   `json:"tailored_cv,omitempty"`
 }
 
 type UpdateApplicationRequest struct {
@@ -56,11 +58,21 @@ func (h *ApplicationHandler) HandleCollection(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		app, err := h.service.CreateApplication(r.Context(), userID, req.JobID, req.Status)
+		app, err := h.service.CreateApplication(r.Context(), userID, req.JobID, req.TailoredCV)
 		if err != nil {
 			if errors.Is(err, services.ErrApplicationInvalidInput) {
 				w.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+			if errors.Is(err, repositories.ErrApplicationConflict) {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "you have already applied to this job"})
+				return
+			}
+			if errors.Is(err, repositories.ErrApplicationNotFound) {
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "job not found"})
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)

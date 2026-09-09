@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Loader2, RefreshCw, Scissors, Send } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
+import { CvPicker } from '../components/CvPicker';
 import { jobsService, Job } from '../services/jobs';
-import { resumeService, Resume } from '../services/resume';
 import { tailoringService } from '../services/tailoring';
 import { applicationService } from '../services/application';
+import { useResumeContext } from '../hooks/useResumeContext';
+import { isResumeReady } from '../services/resume';
 
 const JobPicker: React.FC = () => {
   const navigate = useNavigate();
@@ -41,27 +43,29 @@ const JobPicker: React.FC = () => {
 export const Tailor: React.FC = () => {
   const { jobId = '' } = useParams();
   const [job, setJob] = useState<Job | null>(null);
-  const [resume, setResume] = useState<Resume | null>(null);
+  const [jobLoading, setJobLoading] = useState(true);
+  const [jobError, setJobError] = useState('');
   const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const rc = useResumeContext();
 
-  useEffect(() => { if (!jobId) { setLoading(false); return; } void (async () => {
-    try {
-      const [loadedJob, resumes] = await Promise.all([jobsService.get(jobId), resumeService.list()]);
-      setJob(loadedJob); setResume(resumes[0] || null);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Could not load tailoring data.'); }
-    finally { setLoading(false); }
+  useEffect(() => { if (!jobId) { setJobLoading(false); return; } void (async () => {
+    try { setJob(await jobsService.get(jobId)); }
+    catch (err) { setJobError(err instanceof Error ? err.message : 'Could not load tailoring data.'); }
+    finally { setJobLoading(false); }
   })(); }, [jobId]);
 
   if (!jobId) return <JobPicker />;
 
+  const usableCv = rc.active && isResumeReady(rc.active) ? rc.active : null;
+  const everythingLoading = jobLoading || rc.loading;
+
   const generate = async () => {
-    if (!job || !resume) return;
+    if (!job || !usableCv) return;
     setWorking(true); setError('');
-    try { setContent(await tailoringService.generate({ resumeId: resume.id, jobTitle: job.title, company: job.company, jobDescription: job.description, currentContent: content })); }
+    try { setContent(await tailoringService.generate({ resumeId: usableCv.id, jobTitle: job.title, company: job.company, jobDescription: job.description, currentContent: content })); }
     catch (err) { setError(err instanceof Error ? err.message : 'CV tailoring failed.'); }
     finally { setWorking(false); }
   };
@@ -69,10 +73,41 @@ export const Tailor: React.FC = () => {
   const submit = async () => {
     if (!job) return;
     setWorking(true); setError('');
-    try { await applicationService.create(job.id); setSubmitted(true); }
+    try { await applicationService.create(job.id, content); setSubmitted(true); }
     catch (err) { setError(err instanceof Error ? err.message : 'Application could not be submitted.'); }
     finally { setWorking(false); }
   };
 
-  return <AppShell><Link to={`/discover/${jobId}`} className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16}/>Back to job details</Link><h1 className="mt-5 font-serif text-4xl font-bold text-[var(--text-heading)]">Tailor your CV</h1>{loading ? <div className="mt-8 flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={18}/>Loading job and resume...</div> : error && !job ? <p className="mt-8 text-sm text-[var(--status-rejected)]">{error}</p> : <><p className="mt-2 text-sm text-[var(--text-muted)]">{job?.title} at {job?.company}</p>{!resume && <p className="mt-6 text-sm">Upload a resume before tailoring. <Link className="text-[var(--text-button-fill)]" to="/resume">Open resume manager</Link></p>} {resume && <section className="mt-6 max-w-4xl"><textarea value={content} onChange={event => setContent(event.target.value)} placeholder="Generate a tailored CV, then review and edit it here." className="min-h-[30rem] w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-input)] p-5 text-sm leading-6 outline-none focus:border-[var(--accent-gold)]" aria-label="Tailored CV content" />{error && <p className="mt-3 text-sm text-[var(--status-rejected)]">{error}</p>}<div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={() => void generate()} disabled={working} className="inline-flex items-center gap-2 rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={16}/>{content ? 'Regenerate' : 'Generate tailored CV'}</button><button type="button" onClick={() => void submit()} disabled={working || !content || submitted} className="inline-flex items-center gap-2 rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-sm text-[var(--btn-primary-text)] disabled:opacity-50"><Send size={16}/>{submitted ? 'Application submitted' : 'Submit application'}</button></div></section>}</>}</AppShell>;
+  return <AppShell><Link to={`/discover/${jobId}`} className="inline-flex items-center gap-1 text-sm text-[var(--text-button-fill)]"><ChevronLeft size={16}/>Back to job details</Link><h1 className="mt-5 font-serif text-4xl font-bold text-[var(--text-heading)]">Tailor your CV</h1>{jobError && !job ? <p role="alert" className="mt-8 text-sm text-[var(--status-rejected)]">{jobError}</p> : everythingLoading ? <div className="mt-8 flex items-center gap-2 text-sm"><Loader2 className="animate-spin" size={18}/>Loading job and CV...</div> : <><p className="mt-2 text-sm text-[var(--text-muted)]">{job?.title} at {job?.company}</p>
+
+    <section className="mt-6 max-w-4xl space-y-4">
+      <CvPicker
+        resumes={rc.resumes}
+        active={rc.active}
+        loading={rc.loading}
+        uploading={rc.isUploading}
+        error={rc.error}
+        onUpload={rc.upload}
+        onSelect={rc.select}
+        title="CV to tailor"
+        description="Pick the CV that best represents you for this role. We need a readable (PDF/DOCX/TXT) file to work from."
+      />
+
+      {!usableCv ? (
+        <p className="rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-secondary)] p-4 text-sm leading-6 text-[var(--text-muted)]">
+          {rc.active?.status === 'failed'
+            ? `"${rc.active.name}" couldn't be read. Upload a new CV or choose another one above to enable tailoring.`
+            : 'Upload a CV above to generate a tailored version for this role.'}
+        </p>
+      ) : (
+        <>
+          <textarea value={content} onChange={event => setContent(event.target.value)} placeholder="Generate a tailored CV, then review and edit it here." className="min-h-[30rem] w-full rounded-lg border border-[var(--border-hairline)] bg-[var(--bg-input)] p-5 text-sm leading-6 outline-none focus:border-[var(--accent-gold)]" aria-label="Tailored CV content" />
+          {error && <p role="alert" className="text-sm text-[var(--status-rejected)]">{error}</p>}
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => void generate()} disabled={working} className="inline-flex items-center gap-2 rounded border border-[var(--text-button-fill)] px-4 py-2 text-sm disabled:opacity-50"><RefreshCw size={16}/>{content ? 'Regenerate' : 'Generate tailored CV'}</button>
+            <button type="button" onClick={() => void submit()} disabled={working || !content || submitted} className="inline-flex items-center gap-2 rounded bg-[var(--btn-primary-bg)] px-4 py-2 text-sm text-[var(--btn-primary-text)] disabled:opacity-50"><Send size={16}/>{submitted ? 'Application submitted' : 'Submit application'}</button>
+          </div>
+        </>
+      )}
+    </section></>}</AppShell>;
 };

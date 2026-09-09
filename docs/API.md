@@ -8,12 +8,12 @@ unless noted. Auth-protected endpoints require an `Authorization: Bearer
 
 ### `GET /health`
 
-Pings PostgreSQL.
+Pings PostgreSQL and local file storage.
 
 | Status | Body |
 | ------ | ---- |
-| 200    | `{"status":"ok","database":"ok"}` |
-| 503    | `{"status":"degraded","database":"unavailable"}` (no DB or ping failure) |
+| 200    | `{"status":"healthy","dependencies":{"database":{"status":"ok"},"storage":{"status":"ok"}}}` |
+| 503    | `{"status":"degraded","dependencies":{...}}` when a dependency is down or unconfigured |
 
 ## Authentication
 
@@ -48,7 +48,8 @@ Request:
 
 ## Resumes (auth required)
 
-The `resumes` table stores metadata; the file bytes live in S3/MinIO.
+The `resumes` table stores metadata; the file bytes live on the backend's
+local filesystem and are served from `/storage`.
 
 ### `GET /api/resumes`
 
@@ -81,18 +82,18 @@ Upload a resume (`multipart/form-data`). Fields:
 
 ### `GET /api/resumes/{id}`
 
-Fetch one of the user's resumes plus a short-lived presigned download URL.
+Fetch one of the user's resumes plus a download URL for the stored file.
 
 | Status | Body |
 | ------ | ---- |
-| 200    | resume object with `url` (presigned S3 GET) |
+| 200    | resume object with `url` (local file URL under `/storage`) |
 | 401    | missing/invalid token |
 | 403    | resume belongs to another user |
 | 404    | resume not found |
 
 ### `DELETE /api/resumes/{id}`
 
-Delete the user's resume: removes the S3 object and the DB row.
+Delete the user's resume: removes the stored file and the DB row.
 
 | Status | Meaning |
 | ------ | ------- |
@@ -101,12 +102,59 @@ Delete the user's resume: removes the S3 object and the DB row.
 | 403    | resume belongs to another user |
 | 404    | resume not found |
 
+## Chat (auth required)
+
+### `POST /api/chat`
+
+Send a message to the AI assistant. Only registered when `GEMINI_API_KEY` is
+set.
+
+Request:
+```json
+{ "message": "How should I frame my backend experience?" }
+```
+
+| Status | Body |
+| ------ | ---- |
+| 200    | `{ "message": "<assistant reply>" }` |
+| 400    | missing/invalid message |
+| 401    | missing/invalid token |
+| 503    | AI/upstream unavailable |
+
+## CV tailoring (auth required)
+
+### `POST /api/tailor`
+
+Generate a CV tailored to a job from the user's resume. Only registered when
+`GEMINI_API_KEY` is set.
+
+Request:
+```json
+{
+  "resume_id": "00000000-0000-0000-0000-000000000001",
+  "job_title": "Backend Engineer",
+  "company": "Acme Corp",
+  "job_description": "…",
+  "current_content": ""
+}
+```
+
+| Status | Body |
+| ------ | ---- |
+| 200    | `{ "content": "<tailored CV>" }` |
+| 400    | missing `resume_id` / `job_title` |
+| 401    | missing/invalid token |
+| 404    | resume not found |
+| 503    | AI/upstream unavailable |
+
 ## Errors
 
 Error responses are `{ "error": "<message>" }`. Handlers return 400 for
 validation problems and 500 for unexpected failures.
 
-## Not yet implemented
+## Implemented endpoints
 
-Chat, job search, recommendations, saved jobs, applications, and the dashboard
-aggregation endpoints are planned but not yet exposed.
+Health, auth (register/login), resume management (list/upload/get/delete),
+job search, recommendations, saved jobs, applications (list/create/update),
+chat, and CV tailoring are implemented and exposed.
+

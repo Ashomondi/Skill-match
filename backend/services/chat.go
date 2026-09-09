@@ -79,24 +79,10 @@ func (s *ChatService) SendMessage(
 		)
 	}
 
-	// Store the user's message.
-	_, err := s.memory.StoreConversation(
-		ctx,
-		&models.Conversation{
-			UserID:  input.UserID,
-			Role:    models.ConversationRoleUser,
-			Content: strings.TrimSpace(input.Message),
-		},
-	)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"%w: failed to store user message: %w",
-			ErrChatService,
-			err,
-		)
-	}
-
-	// Generate the AI response.
+	// Generate the AI response first. The conversation repository is queried
+	// for history inside GenerateResponse, so persisting the user's message
+	// beforehand would include the current turn in its own context. Storing
+	// both turns afterwards keeps the prompt clean and atomic.
 	aiResponse, err := s.ai.GenerateResponse(
 		ctx,
 		AIRequest{
@@ -121,18 +107,25 @@ func (s *ChatService) SendMessage(
 		)
 	}
 
-	// Store the assistant response.
-	_, err = s.memory.StoreConversation(
+	// Persist the user turn and the assistant turn together.
+	_, err = s.memory.StoreConversationBatch(
 		ctx,
-		&models.Conversation{
-			UserID:  input.UserID,
-			Role:    models.ConversationRoleAssistant,
-			Content: strings.TrimSpace(aiResponse.Message),
+		[]*models.Conversation{
+			{
+				UserID:  input.UserID,
+				Role:    models.ConversationRoleUser,
+				Content: strings.TrimSpace(input.Message),
+			},
+			{
+				UserID:  input.UserID,
+				Role:    models.ConversationRoleAssistant,
+				Content: strings.TrimSpace(aiResponse.Message),
+			},
 		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"%w: failed to store assistant response: %w",
+			"%w: failed to store conversation: %w",
 			ErrChatService,
 			err,
 		)
@@ -143,7 +136,7 @@ func (s *ChatService) SendMessage(
 	}, nil
 }
 
-// buildChatPrompt builds the context sent to Amazon Bedrock.
+// buildChatPrompt builds the context sent to the AI model.
 func buildChatPrompt(
 	message string,
 	history []*models.Conversation,

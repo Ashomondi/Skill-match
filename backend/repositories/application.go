@@ -26,18 +26,18 @@ func NewApplicationRepository(pool *pgxpool.Pool) *ApplicationRepository {
 }
 
 const applicationColumns = `
-	id, user_id, job_id, status, created_at, updated_at
+	id, user_id, job_id, status, created_at, updated_at, COALESCE(tailored_cv, '')
 `
 
-func (r *ApplicationRepository) Create(ctx context.Context, userID, jobID string) (*models.Application, error) {
+func (r *ApplicationRepository) Create(ctx context.Context, userID, jobID, tailoredCV string) (*models.Application, error) {
 	const q = `
-		INSERT INTO applications (user_id, job_id)
-		VALUES ($1, $2)
+		INSERT INTO applications (user_id, job_id, tailored_cv)
+		VALUES ($1, $2, NULLIF($3, ''))
 		RETURNING ` + applicationColumns
 
 	out := &models.Application{}
-	if err := r.pool.QueryRow(ctx, q, userID, jobID).Scan(
-		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+	if err := r.pool.QueryRow(ctx, q, userID, jobID, tailoredCV).Scan(
+		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt, &out.TailoredCV,
 	); err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrApplicationConflict
@@ -58,7 +58,7 @@ func (r *ApplicationRepository) GetByID(ctx context.Context, userID, id string) 
 
 	out := &models.Application{}
 	if err := r.pool.QueryRow(ctx, q, id, userID).Scan(
-		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt, &out.TailoredCV,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrApplicationNotFound
@@ -83,7 +83,7 @@ func (r *ApplicationRepository) UpdateStatus(ctx context.Context, userID, id str
 
 	out := &models.Application{}
 	if err := tx.QueryRow(ctx, updateQuery, status, id, userID).Scan(
-		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt,
+		&out.ID, &out.UserID, &out.JobID, &out.Status, &out.CreatedAt, &out.UpdatedAt, &out.TailoredCV,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrApplicationNotFound
@@ -144,6 +144,7 @@ func (r *ApplicationRepository) History(ctx context.Context, userID, id string) 
 func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string) ([]*models.Application, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT a.id, a.user_id, a.job_id, a.status, a.created_at, a.updated_at,
+		       COALESCE(a.tailored_cv, ''),
 		       j.id, j.external_id, j.title, j.company, j.location, j.description,
 		       j.salary, j.remote, j.source_url, j.created_at, j.updated_at
 		FROM applications a
@@ -160,6 +161,7 @@ func (r *ApplicationRepository) ListByUserID(ctx context.Context, userID string)
 		app := &models.Application{Job: &models.Job{}}
 		if err := rows.Scan(
 			&app.ID, &app.UserID, &app.JobID, &app.Status, &app.CreatedAt, &app.UpdatedAt,
+			&app.TailoredCV,
 			&app.Job.ID, &app.Job.ExternalID, &app.Job.Title, &app.Job.Company,
 			&app.Job.Location, &app.Job.Description, &app.Job.Salary, &app.Job.Remote,
 			&app.Job.SourceURL, &app.Job.CreatedAt, &app.Job.UpdatedAt,
