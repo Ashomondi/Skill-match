@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -167,7 +168,7 @@ func TestCVDocumentRepositoryUpdateTransaction(t *testing.T) {
 		t.Fatalf("expected ErrCVSectionNotFound, got %v", err)
 	}
 
-	got, err := repo.GetByID(ctx, doc.ID)
+	got, err := repo.getByID(ctx, doc.ID)
 	if err != nil {
 		t.Fatalf("get after rollback: %v", err)
 	}
@@ -207,7 +208,7 @@ func TestCVDocumentRepositoryUpdateTransaction(t *testing.T) {
 		t.Fatalf("expected existing section to be updated in place, got %q", updated.Sections[0].ID)
 	}
 
-	got, err = repo.GetByID(ctx, doc.ID)
+	got, err = repo.getByID(ctx, doc.ID)
 	if err != nil {
 		t.Fatalf("get after update: %v", err)
 	}
@@ -242,7 +243,7 @@ func TestCVDocumentRepositoryPrimaryExclusivity(t *testing.T) {
 		t.Fatalf("create second cv: %v", err)
 	}
 
-	gotFirst, err := repo.GetByID(ctx, first.ID)
+	gotFirst, err := repo.getByID(ctx, first.ID)
 	if err != nil {
 		t.Fatalf("get first: %v", err)
 	}
@@ -263,7 +264,7 @@ func TestCVDocumentRepositoryPrimaryExclusivity(t *testing.T) {
 	if _, err := repo.Update(ctx, gotFirst); err != nil {
 		t.Fatalf("promote first: %v", err)
 	}
-	gotSecond, err := repo.GetByID(ctx, second.ID)
+	gotSecond, err := repo.getByID(ctx, second.ID)
 	if err != nil {
 		t.Fatalf("get second: %v", err)
 	}
@@ -387,7 +388,7 @@ func TestCVDocumentRepositoryCascadesOnDelete(t *testing.T) {
 	if n := countRows(t, pool, `SELECT count(*) FROM cv_sections WHERE cv_id = $1`, doc.ID); n != 0 {
 		t.Fatalf("expected sections to cascade on user delete, got %d", n)
 	}
-	if _, err := repo.GetByID(ctx, doc.ID); !errors.Is(err, ErrCVDocumentNotFound) {
+	if _, err := repo.getByID(ctx, doc.ID); !errors.Is(err, ErrCVDocumentNotFound) {
 		t.Fatalf("expected ErrCVDocumentNotFound after user delete, got %v", err)
 	}
 }
@@ -436,6 +437,69 @@ func TestCVDocumentRepositoryUserIsolation(t *testing.T) {
 	if _, err := repo.GetByIDForUser(ctx, userA.ID, doc.ID); err != nil {
 		t.Fatalf("owner should still read the cv: %v", err)
 	}
+}
+
+func TestCVDocumentRepositorySectionMutationsTouchDocument(t *testing.T) {
+	pool := connectTestPool(t)
+	user := createTestUser(t, pool)
+	repo := NewCVDocumentRepository(pool)
+	ctx := context.Background()
+
+	doc, err := repo.Create(ctx, &models.CVDocument{UserID: user.ID, Title: "Touch CV"})
+	if err != nil {
+		t.Fatalf("create cv: %v", err)
+	}
+	last := doc.UpdatedAt
+
+	assertAdvanced := func(label string) {
+		t.Helper()
+		got, err := repo.getByID(ctx, doc.ID)
+		if err != nil {
+			t.Fatalf("%s: get cv: %v", label, err)
+		}
+		if !got.UpdatedAt.After(last) {
+			t.Fatalf("%s: expected document updated_at to advance; previous=%s current=%s", label, last, got.UpdatedAt)
+		}
+		last = got.UpdatedAt
+	}
+
+	time.Sleep(10 * time.Millisecond)
+	section, err := repo.CreateSection(ctx, user.ID, &models.CVSection{
+		CVID:        doc.ID,
+		SectionType: models.CVSectionSummary,
+		Title:       "Summary",
+	})
+	if err != nil {
+		t.Fatalf("create section: %v", err)
+	}
+	assertAdvanced("create section")
+
+	time.Sleep(10 * time.Millisecond)
+	section.Title = "Profile"
+	if _, err := repo.UpdateSection(ctx, user.ID, section); err != nil {
+		t.Fatalf("update section: %v", err)
+	}
+	assertAdvanced("update section")
+
+	time.Sleep(10 * time.Millisecond)
+	second, err := repo.CreateSection(ctx, user.ID, &models.CVSection{
+		CVID:        doc.ID,
+		SectionType: models.CVSectionSkills,
+		Title:       "Skills",
+	})
+	if err != nil {
+		t.Fatalf("create second section: %v", err)
+	}
+	if err := repo.ReorderSections(ctx, user.ID, doc.ID, []string{second.ID, section.ID}); err != nil {
+		t.Fatalf("reorder sections: %v", err)
+	}
+	assertAdvanced("reorder sections")
+
+	time.Sleep(10 * time.Millisecond)
+	if err := repo.DeleteSection(ctx, user.ID, doc.ID, section.ID); err != nil {
+		t.Fatalf("delete section: %v", err)
+	}
+	assertAdvanced("delete section")
 }
 
 func countRows(t *testing.T, pool *pgxpool.Pool, query string, args ...any) int {
