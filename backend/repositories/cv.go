@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"skill-match/backend/models"
@@ -42,6 +43,22 @@ const cvSectionColumns = `id, cv_id, section_type, title, sort_order,
 type cvQuerier interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// cvExecer is the subset of pgxpool.Pool and pgx.Tx used by write helpers so
+// the same statement can run inside or outside a transaction.
+type cvExecer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+// touchCVDocument bumps a document's updated_at so edits to its sections are
+// reflected in "most recently edited CV first" listings.
+func touchCVDocument(ctx context.Context, db cvExecer, cvID string) error {
+	if _, err := db.Exec(ctx,
+		`UPDATE cv_documents SET updated_at = now() WHERE id = $1`, cvID); err != nil {
+		return fmt.Errorf("repositories: touch cv document: %w", err)
+	}
+	return nil
 }
 
 // Create inserts a CV document. When IsPrimary is true any previous primary
@@ -89,8 +106,12 @@ func (r *CVDocumentRepository) Create(ctx context.Context, doc *models.CVDocumen
 	return out, nil
 }
 
-// GetByID fetches a CV document and its sections in sort order.
-func (r *CVDocumentRepository) GetByID(ctx context.Context, id string) (*models.CVDocument, error) {
+// getByID fetches a CV document and its sections in sort order without an
+// ownership check.
+//
+// SECURITY: never call this from a request handler; use GetByIDForUser so a
+// caller cannot read another user's CV.
+func (r *CVDocumentRepository) getByID(ctx context.Context, id string) (*models.CVDocument, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, fmt.Errorf("%w: id is required", ErrInvalidCVInput)
 	}
@@ -237,6 +258,14 @@ func (r *CVDocumentRepository) CreateSection(ctx context.Context, userID string,
 		return nil, err
 	}
 
+	// Create appends a section and bumps the parent document's updated_at in
+	// one transaction so the two never diverge.
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: begin cv section create: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	q := fmt.Sprintf(`
 		INSERT INTO cv_sections (cv_id, section_type, title, sort_order, content)
 		SELECT d.id, $2, $3, $4, $5
@@ -244,7 +273,7 @@ func (r *CVDocumentRepository) CreateSection(ctx context.Context, userID string,
 		WHERE d.id = $1 AND d.user_id = $6
 		RETURNING %s`, cvSectionColumns)
 
-	out, err := scanCVSection(r.db.QueryRow(ctx, q,
+	out, err := scanCVSection(tx.QueryRow(ctx, q,
 		section.CVID, section.SectionType, strings.TrimSpace(section.Title),
 		section.SortOrder, cvJSON(section.Content), userID))
 	if err != nil {
@@ -254,6 +283,13 @@ func (r *CVDocumentRepository) CreateSection(ctx context.Context, userID string,
 			return nil, ErrCVDocumentNotFound
 		}
 		return nil, err
+	}
+
+	if err := touchCVDocument(ctx, tx, out.CVID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("repositories: commit cv section create: %w", err)
 	}
 	return out, nil
 }
@@ -270,6 +306,13 @@ func (r *CVDocumentRepository) UpdateSection(ctx context.Context, userID string,
 		return nil, fmt.Errorf("%w: section id is required", ErrInvalidCVInput)
 	}
 
+	// Update the section and bump the parent document's updated_at atomically.
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("repositories: begin cv section update: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
 	q := fmt.Sprintf(`
 		UPDATE cv_sections
 		SET section_type = $1, title = $2, sort_order = $3, content = $4, updated_at = now()
@@ -277,10 +320,21 @@ func (r *CVDocumentRepository) UpdateSection(ctx context.Context, userID string,
 		  AND cv_id IN (SELECT id FROM cv_documents WHERE id = $6 AND user_id = $7)
 		RETURNING %s`, cvSectionColumns)
 
-	return scanCVSection(r.db.QueryRow(ctx, q,
+	out, err := scanCVSection(tx.QueryRow(ctx, q,
 		section.SectionType, strings.TrimSpace(section.Title),
 		section.SortOrder, cvJSON(section.Content), section.ID,
 		section.CVID, userID))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := touchCVDocument(ctx, tx, out.CVID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("repositories: commit cv section update: %w", err)
+	}
+	return out, nil
 }
 
 // ListSections returns a CV's sections ordered for rendering.
@@ -323,7 +377,14 @@ func (r *CVDocumentRepository) DeleteSection(ctx context.Context, userID, cvID, 
 		return fmt.Errorf("%w: user_id, cv_id, and section id are required", ErrInvalidCVInput)
 	}
 
-	tag, err := r.db.Exec(ctx, `
+	// Delete the section and bump the parent document's updated_at atomically.
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("repositories: begin cv section delete: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	tag, err := tx.Exec(ctx, `
 		DELETE FROM cv_sections
 		WHERE id = $1 AND cv_id = $2
 		  AND cv_id IN (SELECT id FROM cv_documents WHERE id = $2 AND user_id = $3)`,
@@ -333,6 +394,12 @@ func (r *CVDocumentRepository) DeleteSection(ctx context.Context, userID, cvID, 
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrCVSectionNotFound
+	}
+	if err := touchCVDocument(ctx, tx, cvID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("repositories: commit cv section delete: %w", err)
 	}
 	return nil
 }
@@ -374,6 +441,9 @@ func (r *CVDocumentRepository) ReorderSections(ctx context.Context, userID, cvID
 		}
 	}
 
+	if err := touchCVDocument(ctx, tx, cvID); err != nil {
+		return err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("repositories: commit cv reorder: %w", err)
 	}
@@ -491,6 +561,9 @@ func syncCVSections(ctx context.Context, tx pgx.Tx, cvID string, sections []*mod
 		if _, err := tx.Exec(ctx, `DELETE FROM cv_sections WHERE cv_id = $1`, cvID); err != nil {
 			return nil, fmt.Errorf("repositories: clear cv sections: %w", err)
 		}
+		if err := touchCVDocument(ctx, tx, cvID); err != nil {
+			return nil, err
+		}
 		return out, nil
 	}
 
@@ -498,6 +571,9 @@ func syncCVSections(ctx context.Context, tx pgx.Tx, cvID string, sections []*mod
 		DELETE FROM cv_sections
 		WHERE cv_id = $1 AND NOT (id = ANY($2::uuid[]))`, cvID, keptIDs); err != nil {
 		return nil, fmt.Errorf("repositories: prune cv sections: %w", err)
+	}
+	if err := touchCVDocument(ctx, tx, cvID); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

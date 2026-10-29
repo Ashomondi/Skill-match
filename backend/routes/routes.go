@@ -59,6 +59,13 @@ func RegisterRecommendations(mux *http.ServeMux, h *handlers.RecommendationHandl
 	)
 }
 
+// RegisterProfile exposes the authenticated user's profile.
+func RegisterProfile(mux *http.ServeMux, h *handlers.ProfileHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("GET /api/profile", auth(http.HandlerFunc(h.Get)))
+	mux.Handle("PUT /api/profile", auth(http.HandlerFunc(h.Update)))
+}
+
 func RegisterSavedJobs(mux *http.ServeMux, handler *handlers.SavedJobsHandler, jwtManager *utils.JWTManager) {
 	auth := middleware.Auth(jwtManager)
 	mux.Handle("GET /api/saved-jobs", auth(http.HandlerFunc(handler.List)))

@@ -53,6 +53,7 @@ func main() {
 
 		// Instantiate repositories and services
 		jobRepo := repositories.NewJobRepository(pool)
+		profileRepo := repositories.NewProfileRepository(pool)
 		seedSource := services.NewSeedJobSource()
 		jobSource := services.NewExternalJobSource(seedSource)
 		matchingSvc := services.NewMatchingService()
@@ -68,7 +69,12 @@ func main() {
 		routes.RegisterJobs(mux, handlers.NewJobsHandler(jobService), jwtManager)
 		routes.RegisterRecommendations(
 			mux,
-			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, repositories.NewProfileRepository(pool), matchingSvc)),
+			handlers.NewRecommendationHandler(services.NewRecommendationService(jobRepo, profileRepo, matchingSvc)),
+			jwtManager,
+		)
+		routes.RegisterProfile(
+			mux,
+			handlers.NewProfileHandler(services.NewProfileService(profileRepo)),
 			jwtManager,
 		)
 
