@@ -71,3 +71,14 @@ func RegisterApplications(mux *http.ServeMux, handler *handlers.ApplicationHandl
 	mux.Handle("/api/applications", auth(http.HandlerFunc(handler.HandleCollection)))
 	mux.Handle("/api/applications/", auth(http.HandlerFunc(handler.HandleResource)))
 }
+
+// RegisterCVs exposes structured CV documents, all protected by auth.
+func RegisterCVs(mux *http.ServeMux, h *handlers.CVHandler, jwt *utils.JWTManager) {
+	auth := middleware.Auth(jwt)
+	mux.Handle("GET /api/cvs", auth(http.HandlerFunc(h.List)))
+	mux.Handle("POST /api/cvs", auth(http.HandlerFunc(h.Create)))
+	mux.Handle("GET /api/cvs/{id}", auth(http.HandlerFunc(h.Get)))
+	mux.Handle("PUT /api/cvs/{id}", auth(http.HandlerFunc(h.Update)))
+	mux.Handle("PUT /api/cvs/{id}/sections", auth(http.HandlerFunc(h.PutSections)))
+	mux.Handle("DELETE /api/cvs/{id}", auth(http.HandlerFunc(h.Delete)))
+}
