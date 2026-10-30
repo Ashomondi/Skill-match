@@ -23,6 +23,7 @@ func RegisterHealth(mux *http.ServeMux, healthHandler *handlers.HealthHandler) {
 func RegisterAuth(mux *http.ServeMux, h *handlers.AuthHandler) {
 	mux.HandleFunc("POST /api/auth/register", h.Register)
 	mux.HandleFunc("POST /api/auth/login", h.Login)
+	mux.HandleFunc("POST /api/auth/google", h.Google)
 }
 
 // RegisterResumes exposes the resume endpoints, all protected by auth.

@@ -25,6 +25,14 @@ type AuthResponse struct {
 	Token   string      `json:"token,omitempty"`
 }
 
+// GoogleAuthRequest accepts the ID token returned by Google Identity Services.
+// `credential` is the field name used by Google's own callback, so both names
+// are accepted to keep clients simple.
+type GoogleAuthRequest struct {
+	IDToken    string `json:"idToken"`
+	Credential string `json:"credential"`
+}
+
 // NewAuthHandler creates a new authentication handler.
 func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 	return &AuthHandler{
@@ -105,6 +113,54 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		}
 
 		utils.WriteRequestError(w, r, utils.NewDatabaseError(err, map[string]string{"operation": "login_user"}))
+		return
+	}
+
+	utils.WriteSuccess(w, http.StatusOK, AuthResponse{
+		Message: "login successful",
+		User:    user,
+		Token:   token,
+	})
+}
+
+// Google handles POST /api/auth/google. It verifies a Google ID token and
+// returns the local user plus an application JWT, creating the account on the
+// first sign-in.
+func (h *AuthHandler) Google(w http.ResponseWriter, r *http.Request) {
+	var request GoogleAuthRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		utils.WriteRequestError(w, r, utils.NewValidationError("Invalid request body.", nil))
+		return
+	}
+
+	idToken := request.IDToken
+	if idToken == "" {
+		idToken = request.Credential
+	}
+
+	if idToken == "" {
+		utils.WriteRequestError(w, r, utils.NewValidationError("A Google ID token is required.", nil))
+		return
+	}
+
+	user, token, err := h.authService.LoginWithGoogle(r.Context(), idToken)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrGoogleAuthUnavailable):
+			utils.WriteRequestError(w, r, utils.NewUpstreamError(
+				"Google sign-in is temporarily unavailable. Please try again.",
+				err,
+				map[string]string{"operation": "google_login", "service": "google"},
+			))
+
+		case errors.Is(err, services.ErrInvalidGoogleToken):
+			utils.WriteRequestError(w, r, utils.NewAuthError("Google sign-in could not be verified.", http.StatusUnauthorized))
+
+		default:
+			utils.WriteRequestError(w, r, utils.NewDatabaseError(err, map[string]string{"operation": "google_login"}))
+		}
+
 		return
 	}
 

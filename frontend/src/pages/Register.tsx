@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Check, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { AuthLayout } from './Login';
 import { useAuth } from '../hooks/useAuth';
+import { GoogleSignIn } from '../components/GoogleSignIn';
 
-const GoogleMark = () => <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.22c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.52h3.14c1.84-1.69 2.91-4.19 2.91-7.29Z" /><path fill="#34A853" d="M12 21.72c2.62 0 4.82-.87 6.43-2.35l-3.14-2.52c-.87.58-1.99.92-3.29.92-2.53 0-4.67-1.71-5.44-4v2.6H3.32a9.72 9.72 0 0 0 8.68 5.35Z" /><path fill="#FBBC05" d="M6.56 13.77a5.84 5.84 0 0 1 0-3.54v-2.6H3.32a9.72 9.72 0 0 0 0 8.74l3.24-2.6Z" /><path fill="#EA4335" d="M12 6.23c1.43 0 2.71.49 3.72 1.44l2.79-2.79C16.82 3.3 14.62 2.28 12 2.28a9.72 9.72 0 0 0-8.68 5.35l3.24 2.6c.77-2.29 2.91-4 5.44-4Z" /></svg>;
 const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
-  const { register, error, loading } = useAuth();
+  const { register, googleLogin, error, loading } = useAuth();
   const [fullName, setFullName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [accepted, setAccepted] = useState(false); const [showPassword, setShowPassword] = useState(false); const [touched, setTouched] = useState({ fullName: false, email: false, password: false }); const [submitAttempted, setSubmitAttempted] = useState(false);
   const fullNameError = touched.fullName && !fullName.trim() ? 'Enter your full name.' : '';
   const emailError = touched.email && !isEmail(email) ? 'Enter a valid email address.' : '';
@@ -17,6 +17,7 @@ export const Register: React.FC = () => {
   const valid = Boolean(fullName.trim()) && isEmail(email) && password.length >= 8 && accepted;
   const isSubmitting = loading && submitAttempted;
   const submit = async (event: React.FormEvent) => { event.preventDefault(); setTouched({ fullName: true, email: true, password: true }); if (!valid) return; setSubmitAttempted(true); try { await register({ fullName: fullName.trim(), email, password }); navigate('/dashboard'); } catch { /* hook error renders below */ } };
+  const handleGoogleCredential = async (credential: string) => { try { await googleLogin(credential); navigate('/dashboard'); } catch { /* hook error renders below */ } };
   const fieldClass = (invalid: boolean, isValid = false) => `h-11 w-full rounded border bg-[#EFE6D6] px-3 pr-10 text-[15px] text-[#3A2A1C] outline-none transition focus:ring-2 focus:ring-[#B08D57]/40 ${invalid ? 'border-[#B5573C]' : isValid ? 'border-[#7A8B6F]' : 'border-[#D8C9B2]'}`;
   return <AuthLayout register>
     <header><h1 className="font-serif text-[32px] font-semibold tracking-[-0.03em] text-[#3A2A1C]">Create your account.</h1><p className="mt-2 text-[15px] text-[#8A7B6B]">Start tailoring CVs that actually get responses.</p></header>
@@ -28,7 +29,7 @@ export const Register: React.FC = () => {
       {error ? <div role="alert" className="flex gap-2 rounded border border-[#B5573C] bg-[#B5573C]/10 p-3 text-sm text-[#3A2A1C]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B5573C]" />{error || 'That email is already in use.'}</div> : null}
       <button type="submit" disabled={!valid || isSubmitting} className="flex h-11 w-full items-center justify-center rounded bg-[#5C3A21] text-[15px] font-semibold text-[#F6F0E6] transition hover:bg-[#4A2F1A] hover:shadow-[0px_4px_16px_rgba(92,58,33,0.14)] disabled:pointer-events-none disabled:opacity-50">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create account'}</button>
     </form>
-    <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#D8C9B2]" /><span className="bg-[#F6F0E6] px-2 text-xs text-[#8A7B6B]">OR</span><span className="h-px flex-1 bg-[#D8C9B2]" /></div><button type="button" className="flex h-11 w-full items-center justify-center gap-3 rounded border border-[#3A2A1C]/40 text-[15px] font-medium text-[#3A2A1C]"><GoogleMark />Continue with Google</button><p className="mt-7 text-center text-sm text-[#8A7B6B]">Already have an account? <Link to="/login" className="font-semibold text-[#3A2A1C] hover:underline">Log in</Link></p>
+    <GoogleSignIn onCredential={handleGoogleCredential} busy={loading} /><p className="mt-7 text-center text-sm text-[#8A7B6B]">Already have an account? <Link to="/login" className="font-semibold text-[#3A2A1C] hover:underline">Log in</Link></p>
   </AuthLayout>;
 };
 export default Register;

@@ -35,6 +35,7 @@ type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
+	GoogleID     string    `json:"-"`
 	FullName     string    `json:"fullName"`
 	IsActive     bool      `json:"isActive"`
 	CreatedAt    time.Time `json:"createdAt"`
@@ -59,21 +60,33 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 //
 // Returns ErrUserEmailTaken if the email is already registered.
 func (r *UserRepository) Create(ctx context.Context, u *User) (*User, error) {
-	if u == nil || strings.TrimSpace(u.Email) == "" || u.PasswordHash == "" {
-		return nil, fmt.Errorf("%w: email and password_hash are required", ErrInvalidUserInput)
+	if u == nil || strings.TrimSpace(u.Email) == "" ||
+		(u.PasswordHash == "" && strings.TrimSpace(u.GoogleID) == "") {
+		return nil, fmt.Errorf("%w: email and a password or google_id are required", ErrInvalidUserInput)
 	}
 
 	const q = `
-		INSERT INTO users (email, password_hash, full_name)
-		VALUES ($1, $2, $3)
-		RETURNING id, email, password_hash, full_name, is_active, created_at, updated_at`
+		INSERT INTO users (email, password_hash, google_id, full_name)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, email, COALESCE(password_hash, '') AS password_hash,
+			COALESCE(google_id, '') AS google_id, full_name, is_active, created_at, updated_at`
 
 	email := strings.ToLower(strings.TrimSpace(u.Email))
 
-	row := r.db.QueryRow(ctx, q, email, u.PasswordHash, u.FullName)
+	var passwordHash any
+	if u.PasswordHash != "" {
+		passwordHash = u.PasswordHash
+	}
+
+	var googleID any
+	if strings.TrimSpace(u.GoogleID) != "" {
+		googleID = strings.TrimSpace(u.GoogleID)
+	}
+
+	row := r.db.QueryRow(ctx, q, email, passwordHash, googleID, u.FullName)
 
 	out := &User{}
-	if err := row.Scan(&out.ID, &out.Email, &out.PasswordHash, &out.FullName,
+	if err := row.Scan(&out.ID, &out.Email, &out.PasswordHash, &out.GoogleID, &out.FullName,
 		&out.IsActive, &out.CreatedAt, &out.UpdatedAt); err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrUserEmailTaken
@@ -88,7 +101,8 @@ func (r *UserRepository) Create(ctx context.Context, u *User) (*User, error) {
 // matches.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	const q = `
-		SELECT id, email, password_hash, full_name, is_active, created_at, updated_at
+		SELECT id, email, COALESCE(password_hash, '') AS password_hash,
+			COALESCE(google_id, '') AS google_id, full_name, is_active, created_at, updated_at
 		FROM users
 		WHERE id = $1`
 
@@ -100,11 +114,51 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*User, error) 
 // the auth login flow.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	const q = `
-		SELECT id, email, password_hash, full_name, is_active, created_at, updated_at
+		SELECT id, email, COALESCE(password_hash, '') AS password_hash,
+			COALESCE(google_id, '') AS google_id, full_name, is_active, created_at, updated_at
 		FROM users
 		WHERE email = $1`
 
 	return r.scanOne(ctx, q, strings.ToLower(strings.TrimSpace(email)))
+}
+
+// GetByGoogleID fetches a user by their Google account subject. Returns
+// ErrUserNotFound if no row matches.
+func (r *UserRepository) GetByGoogleID(ctx context.Context, googleID string) (*User, error) {
+	const q = `
+		SELECT id, email, COALESCE(password_hash, '') AS password_hash,
+			COALESCE(google_id, '') AS google_id, full_name, is_active, created_at, updated_at
+		FROM users
+		WHERE google_id = $1`
+
+	return r.scanOne(ctx, q, strings.TrimSpace(googleID))
+}
+
+// LinkGoogleID attaches a Google account to an existing user. Returns
+// ErrUserNotFound if no row matches id.
+func (r *UserRepository) LinkGoogleID(ctx context.Context, id, googleID string) (*User, error) {
+	const q = `
+		UPDATE users
+		SET google_id = $1, updated_at = now()
+		WHERE id = $2
+		RETURNING id, email, COALESCE(password_hash, '') AS password_hash,
+			COALESCE(google_id, '') AS google_id, full_name, is_active, created_at, updated_at`
+
+	row := r.db.QueryRow(ctx, q, strings.TrimSpace(googleID), id)
+
+	out := &User{}
+	if err := row.Scan(&out.ID, &out.Email, &out.PasswordHash, &out.GoogleID, &out.FullName,
+		&out.IsActive, &out.CreatedAt, &out.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		if isUniqueViolation(err) {
+			return nil, ErrUserEmailTaken
+		}
+		return nil, fmt.Errorf("repositories: link google id: %w", err)
+	}
+
+	return out, nil
 }
 
 // UpdatePassword updates a user's password hash and bumps updated_at.
@@ -170,7 +224,7 @@ func (r *UserRepository) scanOne(ctx context.Context, query string, args ...any)
 	row := r.db.QueryRow(ctx, query, args...)
 
 	u := &User{}
-	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.FullName,
+	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.GoogleID, &u.FullName,
 		&u.IsActive, &u.CreatedAt, &u.UpdatedAt)
 	switch {
 	case err == nil:

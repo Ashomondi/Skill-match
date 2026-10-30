@@ -46,6 +46,31 @@ Request:
 
 `user` never contains a password hash.
 
+### `POST /api/auth/google`
+
+Sign in (or sign up) with Google. The frontend obtains an ID token from Google
+Identity Services and sends it here. The backend verifies it with Google, then
+finds the account by Google subject, links an existing account with the same
+verified email, or creates a new account. The response is the same shape as
+login.
+
+Request:
+```json
+{ "idToken": "<Google ID token>" }
+```
+
+`credential` is accepted as an alias for `idToken`.
+
+| Status | Meaning |
+| ------ | ------- |
+| 200    | `{ "message", "user", "token" }` |
+| 400    | missing ID token / bad body |
+| 401    | token invalid, expired, or its email is not verified |
+| 503    | Google sign-in is not configured or verification is unavailable |
+
+The route is always registered; when `GOOGLE_CLIENT_ID` is unset it returns
+503 so clients can detect that Google sign-in is disabled.
+
 ## Resumes (auth required)
 
 The `resumes` table stores metadata; the file bytes live on the backend's
@@ -154,7 +179,7 @@ validation problems and 500 for unexpected failures.
 
 ## Implemented endpoints
 
-Health, auth (register/login), resume management (list/upload/get/delete),
+Health, auth (register/login/Google), resume management (list/upload/get/delete),
 job search, recommendations, saved jobs, applications (list/create/update),
 chat, and CV tailoring are implemented and exposed.
 
