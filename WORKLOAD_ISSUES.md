@@ -546,8 +546,10 @@ Small fixes to tighten the frontend before it's considered done:
 - `services/api.ts`, `pages/Home.tsx` are empty files — remove or implement.
 - `MatchRing` breaks for values outside 0–100 (CSS `--match` conic gradient) — clamp
   the value.
-- The Google "Continue with Google" buttons on Login/Register are non-functional
-  placeholders — wire to real OAuth, or disable them so it's not a broken affordance.
+- ~~The Google "Continue with Google" buttons on Login/Register are non-functional
+  placeholders — wire to real OAuth, or disable them so it's not a broken affordance.~~
+  Done: wired to Google Identity Services with server-side ID-token verification;
+  hidden when `VITE_GOOGLE_CLIENT_ID` is unset.
 - Demo-auth (`VITE_DEMO_AUTH_*`) should be dev-only and clearly flagged (it already is
   gated on `import.meta.env.DEV`, verify that's respected everywhere).
 - Error-message parsing (`errorMessage`/`requestError`) is duplicated across services —
@@ -564,7 +566,7 @@ Small fixes to tighten the frontend before it's considered done:
 - [ ] No empty source files remain in `src/`.
 - [ ] `MatchRing` clamps its value.
 - [ ] One shared error-message helper is used by all services.
-- [ ] Google auth either works or is disabled with a clear reason.
+- [x] Google auth either works or is disabled with a clear reason.
 
 ---
 

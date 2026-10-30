@@ -49,6 +49,22 @@ func main() {
 			repositories.NewUserRepository(pool),
 			jwtManager,
 		)
+
+		// Sign in with Google verifies ID tokens issued to the configured web
+		// client. Without a client ID the endpoint reports 503 and the frontend
+		// hides the Google button.
+		if cfg.GoogleClientID != "" {
+			googleVerifier, err := clients.NewGoogleTokenVerifier(cfg.GoogleClientID, nil)
+			if err != nil {
+				log.Printf("WARNING: failed to init Google token verifier: %v — Google sign-in disabled", err)
+			} else {
+				authService.SetGoogleVerifier(googleVerifier)
+				log.Println("INFO: Google sign-in enabled")
+			}
+		} else {
+			log.Println("WARNING: GOOGLE_CLIENT_ID not set — Google sign-in disabled")
+		}
+
 		routes.RegisterAuth(mux, handlers.NewAuthHandler(authService))
 
 		// Instantiate repositories and services

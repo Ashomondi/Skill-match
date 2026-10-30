@@ -14,7 +14,7 @@ stored on the server's local filesystem.
 | Database    | PostgreSQL (pgvector)             |
 | Object store| Local filesystem (served at `/storage`) |
 | AI          | Google Gemini (generateContent REST) |
-| Auth        | JWT (HS256)                       |
+| Auth        | JWT (HS256) + Google Sign-In      |
 
 ## Repository layout
 
@@ -73,6 +73,7 @@ Environment variables (`backend/.env`):
 | `STORAGE_DIR`     | no       | `./data/resumes`   | directory where resume files are stored        |
 | `GEMINI_API_KEY`  | no*      | —                  | Google Gemini API key (*required for chat/tailor) |
 | `GEMINI_MODEL`    | no       | `gemini-2.5-flash` | Gemini model used for chat and CV tailoring    |
+| `GOOGLE_CLIENT_ID`| no*      | —                  | Google OAuth Web Client ID (*required for Google sign-in) |
 
 > Note: chat (`/api/chat`) and CV tailoring (`/api/tailor`) endpoints are only
 > registered when `GEMINI_API_KEY` is set.
@@ -87,6 +88,12 @@ npm run dev
 
 The frontend reads `VITE_API_BASE_URL` (default `http://localhost:8080/api`);
 override it if the backend runs elsewhere (e.g. `http://localhost:8090/api`).
+
+To enable "Continue with Google", set `VITE_GOOGLE_CLIENT_ID` in
+`frontend/.env` to the same Google OAuth Web Client ID as the backend's
+`GOOGLE_CLIENT_ID`. The ID must be authorised for the frontend origin (for
+example `http://localhost:5173`) in the Google Cloud console. When it is
+absent, the Google button is hidden and `POST /api/auth/google` returns 503.
 
 ## Running
 
@@ -109,8 +116,8 @@ go test -tags integration ./...
 ## API endpoints
 
 See [docs/API.md](docs/API.md). Implemented today: health, auth
-(register/login), resume management, job search, recommendations, saved jobs,
-applications, chat, and CV tailoring.
+(register/login/Google), resume management, job search, recommendations, saved
+jobs, applications, chat, and CV tailoring.
 
 ## Documentation
 

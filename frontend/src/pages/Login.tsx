@@ -2,20 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, Check, Eye, EyeOff, Loader2, ShieldCheck, Settings, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { GoogleSignIn } from '../components/GoogleSignIn';
 
 type AuthLayoutProps = {
   children: React.ReactNode;
   register?: boolean;
 };
-
-const GoogleMark = () => (
-  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" aria-hidden="true">
-    <path fill="#4285F4" d="M21.35 12.22c0-.71-.06-1.4-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.52h3.14c1.84-1.69 2.91-4.19 2.91-7.29Z" />
-    <path fill="#34A853" d="M12 21.72c2.62 0 4.82-.87 6.43-2.35l-3.14-2.52c-.87.58-1.99.92-3.29.92-2.53 0-4.67-1.71-5.44-4v2.6H3.32a9.72 9.72 0 0 0 8.68 5.35Z" />
-    <path fill="#FBBC05" d="M6.56 13.77a5.84 5.84 0 0 1 0-3.54v-2.6H3.32a9.72 9.72 0 0 0 0 8.74l3.24-2.6Z" />
-    <path fill="#EA4335" d="M12 6.23c1.43 0 2.71.49 3.72 1.44l2.79-2.79C16.82 3.3 14.62 2.28 12 2.28a9.72 9.72 0 0 0-8.68 5.35l3.24 2.6c.77-2.29 2.91-4 5.44-4Z" />
-  </svg>
-);
 
 const Brand = ({ mobile = false }: { mobile?: boolean }) => (
   <Link to="/" className={mobile ? 'inline-block text-center' : 'inline-block'}>
@@ -83,7 +75,7 @@ const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { login, error, loading } = useAuth();
+  const { login, googleLogin, error, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -107,6 +99,15 @@ export const Login: React.FC = () => {
     }
   };
 
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      await googleLogin(credential);
+      navigate('/dashboard');
+    } catch {
+      // The hook exposes the backend error for the inline banner.
+    }
+  };
+
   return (
     <AuthLayout>
       <header><h1 className="font-serif text-[32px] font-semibold tracking-[-0.03em] text-[#3A2A1C]">Welcome back.</h1><p className="mt-2 text-[15px] text-[#8A7B6B]">Log in to keep building your tailored applications.</p></header>
@@ -124,8 +125,7 @@ export const Login: React.FC = () => {
         {error ? <div role="alert" className="flex gap-2 rounded border border-[#B5573C] bg-[#B5573C]/10 p-3 text-sm text-[#3A2A1C]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B5573C]" />{error || "That email and password don't match."}</div> : null}
         <button type="submit" disabled={isSubmitting} className="flex h-11 w-full items-center justify-center rounded bg-[#5C3A21] text-[15px] font-semibold text-[#F6F0E6] transition hover:bg-[#4A2F1A] hover:shadow-[0px_4px_16px_rgba(92,58,33,0.14)] disabled:pointer-events-none disabled:opacity-70">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Log in'}</button>
       </form>
-      <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-[#D8C9B2]" /><span className="bg-[#F6F0E6] px-2 text-xs text-[#8A7B6B]">or</span><span className="h-px flex-1 bg-[#D8C9B2]" /></div>
-      <button type="button" className="flex h-11 w-full items-center justify-center gap-3 rounded border border-[#3A2A1C]/40 text-[15px] font-medium text-[#3A2A1C]"><GoogleMark />Continue with Google</button>
+      <GoogleSignIn onCredential={handleGoogleCredential} busy={loading} />
       <p className="mt-7 text-center text-sm text-[#8A7B6B]">Don&apos;t have an account? <Link to="/register" className="font-semibold text-[#3A2A1C] hover:underline">Sign up</Link></p>
     </AuthLayout>
   );

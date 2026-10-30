@@ -14,6 +14,8 @@ type Config struct {
 
 	GeminiAPIKey string
 	GeminiModel  string
+
+	GoogleClientID string
 }
 
 func Load() (*Config, error) {
@@ -39,6 +41,8 @@ func Load() (*Config, error) {
 
 		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
 		GeminiModel:  getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
+
+		GoogleClientID: getEnv("GOOGLE_CLIENT_ID", ""),
 	}
 
 	return cfg, nil
