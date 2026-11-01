@@ -77,6 +77,14 @@ func main() {
 			handlers.NewProfileHandler(services.NewProfileService(profileRepo)),
 			jwtManager,
 		)
+		routes.RegisterCVs(
+			mux,
+			handlers.NewCVHandler(services.NewCVService(
+				repositories.NewCVDocumentRepository(pool),
+				repositories.NewResumeRepository(pool),
+			)),
+			jwtManager,
+		)
 
 		// Async boot ingestion with retries and backoff
 		go func() {
